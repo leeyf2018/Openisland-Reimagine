@@ -9,15 +9,19 @@
 | **许可证** | [GPL-3.0](LICENSE)（与上游相同，再分发须提供源码） |
 | **说明** | [NOTICE](NOTICE) · [改动说明](docs/REIMAGINE_CHANGES.md) · [构建](docs/BUILDING.md) |
 
-## 下载 ZIP
+## 下载
 
-GitHub 页面 → **Code** → **Download ZIP**，或：
+| 你想要什么 | 怎么做 |
+|------------|--------|
+| **预编译安装包（多数人直接用这个）** | 打开 [**Releases**](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest) → 下载 `OpenIsland-Reimagine-*.app.zip` → 解压 → 把 `Open Island.app` 拖到「应用程序」 |
+| **只要源码 ZIP** | 仓库页 **Code → Download ZIP**，或 [main.zip](https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip)，再按文档自己编译 |
 
-```text
-https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip
-```
+**首次打开预编译包：** 当前 Release 为 **本机 ad-hoc 签名**（不是 Apple 开发者公证）。若系统提示无法打开：
 
-ZIP 是**源码**，需在本机 macOS 上构建 `.app`（见下方）。
+1. 右键 App → **打开** → 确认；或  
+2. **系统设置 → 隐私与安全性** → 仍要打开  
+
+只想用、不改代码：下预编译即可。GPL 源码仍完整提供，便于审查与二次开发。
 
 ## 从源码构建
 

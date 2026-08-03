@@ -10,6 +10,17 @@ Optional for the **O** (Copilot credits) chip after install:
 
 - [`gh`](https://cli.github.com/) authenticated (`gh auth login`)
 
+## Prefer prebuilt? (no compile)
+
+If you only want to **run** the app:
+
+1. Open [Releases](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest)
+2. Download `OpenIsland-Reimagine-*.app.zip`
+3. Unzip, move `Open Island.app` to `/Applications`
+4. First launch: right-click → **Open** (ad-hoc signed; not Apple notarized)
+
+Continue below only if you need to **build or modify** the source.
+
 ## Clone / download ZIP
 
 ```bash
@@ -18,6 +29,8 @@ git clone https://github.com/leeyf2018/Openisland-Reimagine.git
 cd Openisland-Reimagine
 
 # Or: GitHub → Code → Download ZIP, then unzip and cd into the folder
+# Source ZIP only (not the prebuilt .app):
+# https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip
 ```
 
 ## Build (debug)

@@ -35,8 +35,16 @@ See [BUILDING.md](./BUILDING.md).
 | G | Grok CLI writing billing lines to `~/.grok/logs/unified.jsonl` |
 | O | [GitHub CLI](https://cli.github.com/) (`gh`) installed and `gh auth login` completed |
 
+## Releases (prebuilt)
+
+Prebuilt macOS app zips are published under GitHub **Releases** (not inside the source tree):
+
+- Asset pattern: `OpenIsland-Reimagine-<version>.app.zip`
+- Signing: typically **ad-hoc** unless a Developer ID build is provided later
+- Source of truth for code remains the `main` branch (GPL-3.0)
+
 ## Non-goals of this fork publish
 
 - No bundled API keys, tokens, or personal config
-- No prebuilt `.app` in the default source tree (optional Releases can be added later)
+- Prebuilt `.app` is only on **Releases**, never required to exercise GPL rights (source ZIP always available)
 - Not a claim of sole authorship of Open Island — this is a GPL-3.0 **derivative**

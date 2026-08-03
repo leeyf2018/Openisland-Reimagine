@@ -39,15 +39,19 @@ This is **not** a ground-up rewrite. It is a **derivative** of Open Island with 
 
 Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/BUILDING.md](docs/BUILDING.md)
 
-### Download as ZIP (no git required)
+### Download
 
-On GitHub: **Code → Download ZIP**, or:
+| What you want | How |
+|---------------|-----|
+| **Prebuilt app (recommended for most people)** | Open [**Releases**](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest) → download `OpenIsland-Reimagine-*.app.zip` → unzip → drag `Open Island.app` to `/Applications` |
+| **Source ZIP only** | **Code → Download ZIP**, or [main.zip](https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip) → then build yourself ([docs/BUILDING.md](docs/BUILDING.md)) |
 
-```text
-https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip
-```
+**First launch (prebuilt):** the Release app is **ad-hoc signed** (not Apple Developer ID / notarized). macOS may block it once:
 
-That ZIP is **source code**. You still need to build a `.app` (see Building below). Optional prebuilt Releases may be added later; they are not required for GPL source access.
+1. Right-click `Open Island.app` → **Open** → confirm, **or**
+2. **System Settings → Privacy & Security** → allow the blocked app
+
+You do **not** need to build from source if you only want to run the prebuilt binary. Source remains available under GPL-3.0 for audit and modification.
 
 ---
 
