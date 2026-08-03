@@ -1,0 +1,40 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Xcode
+DerivedData/
+build/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+# Keep Package.resolved out of local noise; optional for consumers
+
+# Local tooling artifacts / packages / promote trees
+.claude/
+.playwright-mcp/
+output/
+*.app
+*.zip
+*.dmg
+
+# Local-only notes (not for public fork)
+design-qa.md
+Grok_OpenIsland_*.md
+**/backups/
+**/*.bak
+**/*_keys*
+**/*secret*
+**/*credentials*
+
+# Logs and temp files
+*.log
+*.tmp
+.worktrees/
+.air/

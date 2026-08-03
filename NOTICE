@@ -1,0 +1,25 @@
+Open Island — Reimagine fork
+===========================
+
+This repository is a derivative work of **Open Island** (open-vibe-island).
+
+Upstream project
+----------------
+- Name: Open Island / open-vibe-island
+- Upstream repository: https://github.com/Octane0411/open-vibe-island
+- Upstream license: GNU General Public License v3.0 (see `LICENSE`)
+
+This fork
+---------
+- Repository: https://github.com/leeyf2018/Openisland-Reimagine
+- Maintainer publish account: leeyf2018
+- License: GNU General Public License v3.0 (same as upstream — copyleft applies)
+
+You may copy, modify, and redistribute this software under the terms of the GPL-3.0.
+If you distribute binaries or modified versions, you must also provide corresponding source code
+and keep the GPL-3.0 notices.
+
+Fork focus (high level)
+-----------------------
+Notch usage chips for Codex / Grok / OpenCode (GitHub Copilot credits), compact C/G/O layout,
+and related polling / display tweaks. See `docs/REIMAGINE_CHANGES.md`.
