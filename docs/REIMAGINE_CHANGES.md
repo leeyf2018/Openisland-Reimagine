@@ -43,6 +43,26 @@ Prebuilt macOS app zips are published under GitHub **Releases** (not inside the 
 - Signing: typically **ad-hoc** unless a Developer ID build is provided later
 - Source of truth for code remains the `main` branch (GPL-3.0)
 
+### Single Latest package policy (hard)
+
+Yunfeng policy **2026-08-04**: this repo keeps **only one** GitHub Release with a prebuilt install zip — always the current good build (Latest).
+
+| Do | Don't |
+|----|--------|
+| Publish/replace **one** Latest prebuilt after a verified fix | Leave multiple installable zips as “which one do I download?” |
+| Delete previous prebuilt Release(s) after the new Latest is published | Keep known-buggy install packages as Latest or as tempting parallel downloads |
+| Point docs at `releases/latest` only | Ask Yunfeng each time whether to keep old packages |
+
+Source history remains in `main` git; only the **downloadable .app.zip surface** is single-slot.
+
+### Usage loader fixes (1.1.6-grok1.21 / 1.1.6-grok1.22)
+
+| Chip | Issue | Fix |
+|------|--------|-----|
+| **C** | Stale Codex % from `~/.codex/sessions` only | Also scan `archived_sessions`; pick newest rate_limits **event** time |
+| **G** | After weekly reset, last log line can keep high % until CLI re-fetches | Period rollover → 0% used; multi `unified.jsonl*` candidates |
+| **O** | Live `gh` fail + old cache after monthly reset can freeze credits | `period_reset` zero + 7-day offline cache max |
+
 ## Non-goals of this fork publish
 
 - No bundled API keys, tokens, or personal config

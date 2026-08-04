@@ -78,17 +78,71 @@ public enum OpenCodeUsageLoader {
         "/usr/bin/gh",
     ]
 
+    /// Reject extremely old offline cache (days) so a long-dead `gh` path cannot
+    /// freeze the notch forever. Mid-period multi-hour cache is still OK.
+    public static let maxOfflineCacheAge: TimeInterval = 7 * 86_400
+
     /// Live fetch via `gh`, fall back to last good cache. Returns `nil` only when
     /// both live and cache are unavailable.
+    ///
+    /// **Period-reset guard:** when the cached `resetsAt` is already past (monthly
+    /// Copilot window rolled over) and live fetch is unavailable, do **not** keep
+    /// showing pre-reset `credits_used` — same class of bug as Codex C after reset.
     public static func load(
         cacheURL: URL = defaultCacheURL,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        now: Date = .now
     ) throws -> OpenCodeUsageSnapshot? {
         if let live = try? fetchLiveSnapshot() {
-            try? writeCache(live, to: cacheURL, fileManager: fileManager)
-            return live
+            let normalized = normalizeForCurrentPeriod(live, now: now)
+            try? writeCache(normalized, to: cacheURL, fileManager: fileManager)
+            return normalized
         }
-        return try? readCache(from: cacheURL, fileManager: fileManager)
+        return try? readCache(from: cacheURL, fileManager: fileManager, now: now)
+    }
+
+    /// When the quota window end is in the past, surface a post-reset zero-spend
+    /// snapshot instead of a frozen pre-reset credit total.
+    public static func normalizeForCurrentPeriod(
+        _ snapshot: OpenCodeUsageSnapshot,
+        now: Date = .now
+    ) -> OpenCodeUsageSnapshot {
+        guard let resetsAt = snapshot.resetsAt, resetsAt <= now else {
+            return snapshot
+        }
+
+        let nextReset = advancedResetDate(from: resetsAt, past: now)
+        return OpenCodeUsageSnapshot(
+            source: snapshot.source,
+            capturedAt: now,
+            usedPercentage: 0,
+            remainingPercentage: 100,
+            isUnlimited: snapshot.isUnlimited,
+            planType: snapshot.planType,
+            quotaID: snapshot.quotaID,
+            creditsUsed: 0,
+            creditsEntitlement: snapshot.creditsEntitlement
+                ?? planDefaultPremiumAllowance(snapshot.planType),
+            usageBasis: "period_reset",
+            resetsAt: nextReset
+        )
+    }
+
+    /// Advance a monthly (or other) reset date until it is in the future.
+    public static func advancedResetDate(from resetsAt: Date, past now: Date) -> Date {
+        var cursor = resetsAt
+        var guardCount = 0
+        // Prefer calendar months for GitHub monthly seats; fall back to +30d.
+        let calendar = Calendar(identifier: .gregorian)
+        while cursor <= now, guardCount < 24 {
+            if let next = calendar.date(byAdding: .month, value: 1, to: cursor) {
+                cursor = next
+            } else {
+                cursor = cursor.addingTimeInterval(30 * 86_400)
+            }
+            guardCount += 1
+        }
+        return cursor
     }
 
     public static func fetchLiveSnapshot() throws -> OpenCodeUsageSnapshot? {
@@ -297,7 +351,8 @@ public enum OpenCodeUsageLoader {
 
     private static func readCache(
         from url: URL,
-        fileManager: FileManager
+        fileManager: FileManager,
+        now: Date = .now
     ) throws -> OpenCodeUsageSnapshot? {
         guard fileManager.fileExists(atPath: url.path) else {
             return nil
@@ -305,7 +360,15 @@ public enum OpenCodeUsageLoader {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(OpenCodeUsageSnapshot.self, from: data)
+        let snapshot = try decoder.decode(OpenCodeUsageSnapshot.self, from: data)
+
+        if let capturedAt = snapshot.capturedAt,
+           now.timeIntervalSince(capturedAt) > maxOfflineCacheAge {
+            // Dead cache: better show empty than multi-week-old spend.
+            return nil
+        }
+
+        return normalizeForCurrentPeriod(snapshot, now: now)
     }
 
     // MARK: - Process helpers

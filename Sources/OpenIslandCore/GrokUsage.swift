@@ -51,7 +51,114 @@ public enum GrokUsageLoader {
     public static let defaultLogURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".grok/logs/unified.jsonl")
 
-    public static func load(from logURL: URL = defaultLogURL) throws -> GrokUsageSnapshot? {
+    public static let defaultLogsDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".grok/logs", isDirectory: true)
+
+    /// Live `unified.jsonl` plus any rotated siblings (`unified.jsonl.1`, …).
+    public static func defaultLogURLs(fileManager: FileManager = .default) -> [URL] {
+        let directory = defaultLogsDirectoryURL
+        guard fileManager.fileExists(atPath: directory.path),
+              let names = try? fileManager.contentsOfDirectory(atPath: directory.path) else {
+            return [defaultLogURL]
+        }
+
+        let matched = names.filter { name in
+            name == "unified.jsonl" || name.hasPrefix("unified.jsonl.")
+        }
+
+        let urls = matched.map { directory.appendingPathComponent($0) }
+        let sorted = urls.sorted { lhs, rhs in
+            let left = (try? fileManager.attributesOfItem(atPath: lhs.path)[.modificationDate] as? Date)
+                ?? .distantPast
+            let right = (try? fileManager.attributesOfItem(atPath: rhs.path)[.modificationDate] as? Date)
+                ?? .distantPast
+            if left == right {
+                return lhs.path.localizedStandardCompare(rhs.path) == .orderedDescending
+            }
+            return left > right
+        }
+
+        return sorted.isEmpty ? [defaultLogURL] : sorted
+    }
+
+    /// Production entry: newest billing line across live + rotated logs, then
+    /// normalize for an already-elapsed weekly period (post-reset without a new
+    /// Grok CLI fetch would otherwise keep showing last period’s high %).
+    public static func load(
+        fileManager: FileManager = .default,
+        now: Date = .now
+    ) throws -> GrokUsageSnapshot? {
+        try load(fromLogURLs: defaultLogURLs(fileManager: fileManager), now: now)
+    }
+
+    /// Single-file load (tests + pinned fixtures).
+    public static func load(
+        from logURL: URL,
+        now: Date = .now
+    ) throws -> GrokUsageSnapshot? {
+        try load(fromLogURLs: [logURL], now: now)
+    }
+
+    public static func load(
+        fromLogURLs logURLs: [URL],
+        now: Date = .now
+    ) throws -> GrokUsageSnapshot? {
+        var bestRaw: GrokUsageSnapshot?
+
+        for logURL in logURLs {
+            guard let snapshot = try loadRaw(from: logURL) else {
+                continue
+            }
+            let captured = snapshot.capturedAt ?? .distantPast
+            let bestCaptured = bestRaw?.capturedAt ?? .distantPast
+            if bestRaw == nil || captured > bestCaptured {
+                bestRaw = snapshot
+            }
+        }
+
+        guard let bestRaw else {
+            return nil
+        }
+        return normalizeForCurrentPeriod(bestRaw, now: now)
+    }
+
+    /// When `resetsAt` is already past, the last log line is pre-reset. Surface
+    /// a fresh period at 0% used instead of a frozen high watermark.
+    public static func normalizeForCurrentPeriod(
+        _ snapshot: GrokUsageSnapshot,
+        now: Date = .now
+    ) -> GrokUsageSnapshot {
+        guard let resetsAt = snapshot.resetsAt, resetsAt <= now else {
+            return snapshot
+        }
+
+        var periodStart = snapshot.periodStart ?? resetsAt
+        var periodEnd = resetsAt
+        var length = periodEnd.timeIntervalSince(periodStart)
+        if length <= 0 {
+            // SuperGrok weekly window default when period start is missing.
+            length = 7 * 86_400
+        }
+
+        var guardCount = 0
+        while periodEnd <= now, guardCount < 52 {
+            periodStart = periodEnd
+            periodEnd = periodEnd.addingTimeInterval(length)
+            guardCount += 1
+        }
+
+        return GrokUsageSnapshot(
+            sourceFilePath: snapshot.sourceFilePath,
+            capturedAt: snapshot.capturedAt,
+            usedPercentage: 0,
+            periodType: snapshot.periodType,
+            periodStart: periodStart,
+            resetsAt: periodEnd,
+            subscriptionTier: snapshot.subscriptionTier
+        )
+    }
+
+    private static func loadRaw(from logURL: URL) throws -> GrokUsageSnapshot? {
         guard FileManager.default.fileExists(atPath: logURL.path) else {
             return nil
         }

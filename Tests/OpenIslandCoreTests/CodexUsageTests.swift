@@ -187,6 +187,81 @@ struct CodexUsageTests {
 
         #expect(snapshot?.windows.map(\.label) == ["1h 30m", "1d 1h"])
     }
+
+    /// Regression: after quota reset, Codex moves the fresh rollout into
+    /// `archived_sessions/` while `sessions/` still holds a pre-reset 100%
+    /// snapshot. The loader must prefer the newer event, not the stale live tree.
+    @Test
+    func codexUsageLoaderPrefersNewerArchivedRateLimitsOverStaleSessions() throws {
+        let sessionsRoot = temporaryRootURL(named: "codex-usage-sessions")
+        let archivedRoot = temporaryRootURL(named: "codex-usage-archived")
+        let staleRolloutURL = sessionsRoot
+            .appendingPathComponent("2026/08/03", isDirectory: true)
+            .appendingPathComponent("rollout-stale-100.jsonl")
+        let freshRolloutURL = archivedRoot
+            .appendingPathComponent("rollout-fresh-45.jsonl")
+
+        defer {
+            try? FileManager.default.removeItem(at: sessionsRoot)
+            try? FileManager.default.removeItem(at: archivedRoot)
+        }
+
+        try writeRollout(
+            [
+                rolloutLine(
+                    timestamp: "2026-08-03T13:19:18.730Z",
+                    type: "event_msg",
+                    payload: [
+                        "type": "token_count",
+                        "rate_limits": [
+                            "limit_id": "codex",
+                            "plan_type": "plus",
+                            "primary": [
+                                "used_percent": 100.0,
+                                "window_minutes": 10_080,
+                                "resets_at": 1_786_163_717,
+                            ],
+                        ],
+                    ]
+                ),
+            ],
+            to: staleRolloutURL
+        )
+        try writeRollout(
+            [
+                rolloutLine(
+                    timestamp: "2026-08-04T10:03:07.175Z",
+                    type: "event_msg",
+                    payload: [
+                        "type": "token_count",
+                        "rate_limits": [
+                            "limit_id": "codex",
+                            "plan_type": "plus",
+                            "primary": [
+                                "used_percent": 45.0,
+                                "window_minutes": 10_080,
+                                "resets_at": 1_786_427_664,
+                            ],
+                        ],
+                    ]
+                ),
+            ],
+            to: freshRolloutURL
+        )
+
+        // Even if the stale sessions/ file was re-touched and has a newer mtime,
+        // multi-root + event-timestamp selection must still pick the post-reset 45%.
+        try setModificationDate(Date(timeIntervalSince1970: 5_000), for: staleRolloutURL)
+        try setModificationDate(Date(timeIntervalSince1970: 4_000), for: freshRolloutURL)
+
+        let snapshot = try CodexUsageLoader.load(
+            fromRootURLs: [sessionsRoot, archivedRoot]
+        )
+
+        #expect(resolvedPath(snapshot?.sourceFilePath) == freshRolloutURL.resolvingSymlinksInPath().path)
+        #expect(snapshot?.windows.first?.roundedUsedPercentage == 45)
+        #expect(snapshot?.capturedAt == isoDate("2026-08-04T10:03:07.175Z"))
+    }
 }
 
 private func temporaryRootURL(named name: String) -> URL {

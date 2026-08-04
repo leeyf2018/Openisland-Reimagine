@@ -62,42 +62,80 @@ public struct CodexUsageSnapshot: Equatable, Codable, Sendable {
 public enum CodexUsageLoader {
     public static let defaultRootURL = CodexRolloutDiscovery.defaultRootURL
 
+    /// Finished Codex sessions are often moved out of `sessions/` into
+    /// `archived_sessions/`. Usage rate-limits after a quota reset commonly
+    /// only exist on those archived rollouts — scanning only `sessions/`
+    /// freezes the notch on a stale pre-reset snapshot (e.g. C stuck at 100).
+    public static let defaultArchivedRootURL = CodexArchivedSessionIndex.defaultDirectoryURL
+
+    /// Production default: live sessions + archived rollouts.
+    public static var defaultSearchURLs: [URL] {
+        [defaultRootURL, defaultArchivedRootURL]
+    }
+
+    /// Cap how many newest rollout files we open per refresh. Rate-limit lines
+    /// appear near the end of active sessions; mtime order keeps this cheap.
+    private static let maxCandidateFiles = 80
+
     private struct Candidate {
         var fileURL: URL
         var modifiedAt: Date
     }
 
+    /// Production entry: scan both live and archived Codex rollout roots.
     public static func load(
-        fromRootURL rootURL: URL = defaultRootURL,
         fileManager: FileManager = .default
     ) throws -> CodexUsageSnapshot? {
-        guard fileManager.fileExists(atPath: rootURL.path),
-              let enumerator = fileManager.enumerator(
-                at: rootURL,
-                includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
-                options: [.skipsHiddenFiles]
-              ) else {
-            return nil
-        }
+        try load(fromRootURLs: defaultSearchURLs, fileManager: fileManager)
+    }
 
+    /// Single-root load (tests + callers that pin a fixture directory).
+    public static func load(
+        fromRootURL rootURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> CodexUsageSnapshot? {
+        try load(fromRootURLs: [rootURL], fileManager: fileManager)
+    }
+
+    /// Multi-root load. Picks the rate-limit snapshot with the newest event
+    /// timestamp among the newest `maxCandidateFiles` rollouts by mtime.
+    public static func load(
+        fromRootURLs rootURLs: [URL],
+        fileManager: FileManager = .default
+    ) throws -> CodexUsageSnapshot? {
         var candidates: [Candidate] = []
 
-        for case let fileURL as URL in enumerator {
-            guard fileURL.lastPathComponent.hasPrefix("rollout-"),
-                  fileURL.pathExtension == "jsonl",
-                  let resourceValues = try? fileURL.resourceValues(
-                    forKeys: [.contentModificationDateKey, .isRegularFileKey]
-                  ),
-                  resourceValues.isRegularFile == true else {
+        for rootURL in rootURLs {
+            guard fileManager.fileExists(atPath: rootURL.path),
+                  let enumerator = fileManager.enumerator(
+                    at: rootURL,
+                    includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+                    options: [.skipsHiddenFiles]
+                  ) else {
                 continue
             }
 
-            candidates.append(
-                Candidate(
-                    fileURL: fileURL,
-                    modifiedAt: resourceValues.contentModificationDate ?? .distantPast
+            for case let fileURL as URL in enumerator {
+                guard fileURL.lastPathComponent.hasPrefix("rollout-"),
+                      fileURL.pathExtension == "jsonl",
+                      let resourceValues = try? fileURL.resourceValues(
+                        forKeys: [.contentModificationDateKey, .isRegularFileKey]
+                      ),
+                      resourceValues.isRegularFile == true else {
+                    continue
+                }
+
+                candidates.append(
+                    Candidate(
+                        fileURL: fileURL,
+                        modifiedAt: resourceValues.contentModificationDate ?? .distantPast
+                    )
                 )
-            )
+            }
+        }
+
+        guard !candidates.isEmpty else {
+            return nil
         }
 
         let sortedCandidates = candidates.sorted { lhs, rhs in
@@ -108,16 +146,27 @@ public enum CodexUsageLoader {
             return lhs.modifiedAt > rhs.modifiedAt
         }
 
-        for candidate in sortedCandidates {
-            if let snapshot = loadLatestSnapshot(
+        // Prefer the freshest *rate-limit event*, not merely the first file that
+        // happens to contain any historical rate_limits payload.
+        var bestSnapshot: CodexUsageSnapshot?
+        var bestCapturedAt: Date = .distantPast
+
+        for candidate in sortedCandidates.prefix(maxCandidateFiles) {
+            guard let snapshot = loadLatestSnapshot(
                 from: candidate.fileURL,
                 modifiedAt: candidate.modifiedAt
-            ) {
-                return snapshot
+            ) else {
+                continue
+            }
+
+            let capturedAt = snapshot.capturedAt ?? candidate.modifiedAt
+            if bestSnapshot == nil || capturedAt > bestCapturedAt {
+                bestSnapshot = snapshot
+                bestCapturedAt = capturedAt
             }
         }
 
-        return nil
+        return bestSnapshot
     }
 
     private static func loadLatestSnapshot(from fileURL: URL, modifiedAt: Date) -> CodexUsageSnapshot? {
