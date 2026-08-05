@@ -37,7 +37,7 @@ This is **not** a ground-up rewrite. It is a **derivative** of Open Island with 
 - Grok usage: local billing log + ~15s poll
 - OpenCode / Copilot: `gh api /copilot_internal/user` (Business seats use `credits_used`)
 
-Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/BUILDING.md](docs/BUILDING.md)
+Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/BUILDING.md](docs/BUILDING.md) · Docs map: [docs/index.md](docs/index.md) · CI harness: [`scripts/harness.sh`](scripts/harness.sh)
 
 ### Download
 
