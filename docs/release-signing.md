@@ -2,6 +2,16 @@
 
 Open Island releases are code-signed and notarized via GitHub Actions. This document explains how to set up the required secrets.
 
+## Hard rule (Reimagine / public fork)
+
+| Do | Don't |
+|----|--------|
+| Put Apple cert material **only** in GitHub **Actions Secrets** (and local Keychain for personal builds) | `git add` any `.p12`, `.pem`, `.p8`, `.cer`, base64 dumps, or notary passwords |
+| Delete local export files after pasting into Secrets | Commit `Certificates.p12`, `*.mobileprovision`, or env files with secrets |
+| Prefer ad-hoc / manual Latest zip when Secrets are empty (CI already supports this path) | Assume empty Secrets mean “release is broken forever” |
+
+(5 岁版：钥匙只放保险箱；**永远不要把钥匙钉在公开说明书上**。)
+
 ## Required GitHub Secrets
 
 Go to **Settings → Secrets and variables → Actions** in the repository and add:
@@ -25,6 +35,7 @@ Go to **Settings → Secrets and variables → Actions** in the repository and a
    base64 -i Certificates.p12 | pbcopy
    ```
 5. Paste the result into the `APPLE_CERTIFICATE_P12` secret
+6. **Delete or move outside the repo** the temporary `.p12` and any shell history that printed it — never stage those files
 
 ## How to generate an app-specific password
 

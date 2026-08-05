@@ -33,6 +33,15 @@ Grok_OpenIsland_*.md
 **/*secret*
 **/*credentials*
 
+# Apple signing / notarization material (GitHub Secrets only — never commit)
+*.p12
+*.pem
+*.p8
+*.cer
+*.mobileprovision
+**/Certificates.p12
+**/apple-signing/
+
 # Logs and temp files
 *.log
 *.tmp

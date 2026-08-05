@@ -288,7 +288,8 @@ Confirmed from `Info.plist`, embedded frameworks, and binary strings:
 - release notes:
   - `https://dl.vibeisland.app/release-notes/`
 - Sentry ingestion:
-  - `https://375861f9d4f0bfd47ed9f9b44b1872fd@o4510782780014592.ingest.us.sentry.io/4510782787289088`
+  - `https://***REDACTED***@o***.ingest.us.sentry.io/***`  
+    (client DSN observed in a third-party installed bundle; redacted for repo hygiene — not a secret of this fork)
 - PostHog analytics:
   - `https://us.i.posthog.com/capture/`
 - Anthropic OAuth usage:

@@ -45,13 +45,13 @@ Prebuilt macOS app zips are published under GitHub **Releases** (not inside the 
 
 ### Single Latest package policy (hard)
 
-Yunfeng policy **2026-08-04**: this repo keeps **only one** GitHub Release with a prebuilt install zip — always the current good build (Latest).
+**Reimagine** policy **2026-08-04**: this repo keeps **only one** GitHub Release with a prebuilt install zip — always the current good build (Latest).
 
 | Do | Don't |
 |----|--------|
 | Publish/replace **one** Latest prebuilt after a verified fix | Leave multiple installable zips as “which one do I download?” |
 | Delete previous prebuilt Release(s) after the new Latest is published | Keep known-buggy install packages as Latest or as tempting parallel downloads |
-| Point docs at `releases/latest` only | Ask Yunfeng each time whether to keep old packages |
+| Point docs at `releases/latest` only | Re-ask each time whether to keep old packages |
 
 Source history remains in `main` git; only the **downloadable .app.zip surface** is single-slot.
 
