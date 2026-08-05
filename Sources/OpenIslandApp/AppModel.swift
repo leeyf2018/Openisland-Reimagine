@@ -1604,11 +1604,12 @@ final class AppModel {
             return
         }
 
-        // Completions must drop the notch card even when the user is staring at
-        // Ghostty/Grok (frontmost suppress) or already has the session list open
-        // from a prior click. That is the main "done" signal for Grok L1.
-        let isCompletionCard = session.phase == .completed
-        if isCompletionCard || !suppressFrontmostNotifications {
+        // Completions used to always drop the notch ("刘海掉下来"), even while
+        // the user was focused on Ghostty/Grok — that felt like an unsolicited
+        // auto-popup. Honor suppressFrontmostNotifications for ALL surfaces
+        // (completion, permission, question). When suppress is off, present
+        // immediately as before.
+        if !suppressFrontmostNotifications {
             presentNotificationSurface(surface)
             return
         }
@@ -1679,14 +1680,10 @@ final class AppModel {
         refreshOverlayPlacementIfVisible()
         lastActionMessage = "Grok \(reason): \(sessionID.prefix(8))…"
 
-        // Brand-new sessions may open the list once so the row is discoverable.
-        // Turn restarts must NOT open with `.click` — that blocked the later
-        // completion notification ("刘海掉下来") because eligibility used to
-        // require closed | notification only.
-        if reason.contains("new session"),
-           notchStatus == .closed || notchOpenReason == .notification {
-            notchOpen(reason: .click, surface: .sessionList())
-        }
+        // Do not auto-open the full SESSIONS list on new Grok sessions.
+        // Opening with reason `.click` previously stuck the panel open (no
+        // mouse-leave auto-collapse), which users experience as random popup.
+        // Discovery still registers the row; click/hover the notch to browse.
     }
 
     /// Applies startup discovery results on the main thread after background I/O completes.

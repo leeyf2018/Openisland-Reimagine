@@ -851,6 +851,10 @@ public enum CodexRolloutReducer {
         }
     }
 
+    /// Summary written by soft/hard rate-limit completion. Mid-turn activity after
+    /// this summary may resume the turn (quota % alone is not a hard stop).
+    private static let rateLimitReachedSummary = "Rate limit reached."
+
     private static func applyRateLimitSignal(
         _ payload: [String: Any],
         to snapshot: inout CodexRolloutSnapshot
@@ -865,34 +869,24 @@ public enum CodexRolloutReducer {
             return
         }
 
+        // Only trust Codex's explicit hard-stop flag.
+        // `used_percent >= 100` is account-window usage for the notch chip — the
+        // agent can still stream tools after the gauge hits 100. Completing the
+        // session on percent alone false-kills live turns (see 2026-08-05 Blessing
+        // rollout: 100% at 10:29, tools continued for minutes).
         if let reachedType = rateLimits["rate_limit_reached_type"] as? String,
            !reachedType.isEmpty {
             markRateLimitReached(on: &snapshot)
-            return
         }
-
-        guard let primary = rateLimits["primary"] as? [String: Any],
-              let usedPercent = number(from: primary["used_percent"]),
-              usedPercent >= 100,
-              turnAwaitingAgentResponse(snapshot) else {
-            return
-        }
-
-        markRateLimitReached(on: &snapshot)
     }
 
-    private static func turnAwaitingAgentResponse(_ snapshot: CodexRolloutSnapshot) -> Bool {
-        guard let summary = snapshot.summary?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !summary.isEmpty else {
-            return true
-        }
-
-        if summary.hasPrefix("Prompt:") {
-            return true
-        }
-
-        return summary == "Thinking."
-            || summary == "Codex started a new turn."
+    /// Rate-limit completion may be followed by more tool work if Codex soft-limits
+    /// or recovers. `task_complete` / terminal messages keep their own summaries and
+    /// must not reopen on trailing JSONL noise.
+    private static func canResumeCompletedTurn(_ snapshot: CodexRolloutSnapshot) -> Bool {
+        snapshot.isCompleted
+            && snapshot.summary == rateLimitReachedSummary
+            && !snapshot.isInterrupted
     }
 
     private static func markRateLimitReached(on snapshot: inout CodexRolloutSnapshot) {
@@ -901,20 +895,7 @@ public enum CodexRolloutReducer {
         snapshot.phase = .completed
         snapshot.isCompleted = true
         snapshot.isInterrupted = false
-        snapshot.summary = "Rate limit reached."
-    }
-
-    private static func number(from value: Any?) -> Double? {
-        switch value {
-        case let number as Double:
-            number
-        case let number as Int:
-            Double(number)
-        case let number as NSNumber:
-            number.doubleValue
-        default:
-            nil
-        }
+        snapshot.summary = rateLimitReachedSummary
     }
 
     private static func applyResponseItem(
@@ -1003,8 +984,11 @@ public enum CodexRolloutReducer {
         // After task_complete, trailing tool lifecycle records can still be
         // flushed into the JSONL. They may refresh updatedAt, but must not
         // reopen the completed turn or replace the final assistant summary.
-        guard !snapshot.isCompleted else {
-            return
+        // Soft rate-limit completion is the exception: Codex may keep working.
+        if snapshot.isCompleted {
+            guard canResumeCompletedTurn(snapshot) else {
+                return
+            }
         }
 
         snapshot.currentTool = toolName
@@ -1016,8 +1000,10 @@ public enum CodexRolloutReducer {
     }
 
     private static func applyThinking(to snapshot: inout CodexRolloutSnapshot) {
-        guard !snapshot.isCompleted else {
-            return
+        if snapshot.isCompleted {
+            guard canResumeCompletedTurn(snapshot) else {
+                return
+            }
         }
 
         snapshot.currentTool = nil
@@ -1029,8 +1015,10 @@ public enum CodexRolloutReducer {
     }
 
     private static func applyApprovalRequest(summary: String?, to snapshot: inout CodexRolloutSnapshot) {
-        guard !snapshot.isCompleted else {
-            return
+        if snapshot.isCompleted {
+            guard canResumeCompletedTurn(snapshot) else {
+                return
+            }
         }
 
         snapshot.currentTool = nil
@@ -1042,8 +1030,10 @@ public enum CodexRolloutReducer {
     }
 
     private static func applyQuestionRequest(summary: String?, to snapshot: inout CodexRolloutSnapshot) {
-        guard !snapshot.isCompleted else {
-            return
+        if snapshot.isCompleted {
+            guard canResumeCompletedTurn(snapshot) else {
+                return
+            }
         }
 
         snapshot.currentTool = nil
@@ -1079,23 +1069,27 @@ public enum CodexRolloutReducer {
         to snapshot: inout CodexRolloutSnapshot
     ) {
         snapshot.lastAssistantMessage = message
-        snapshot.summary = message
 
-        if !snapshot.isCompleted, isTerminalFailureMessage(message) {
+        if isTerminalFailureMessage(message) {
+            // Terminal quota/error copy ends the turn even without turn_complete.
             snapshot.currentTool = nil
             snapshot.currentCommandPreview = nil
             snapshot.phase = .completed
             snapshot.isCompleted = true
             snapshot.isInterrupted = false
-        } else if !snapshot.isCompleted {
-            // After task_complete, the JSONL may still contain trailing
-            // response_item entries (the final assistant message). These should
-            // update content but NOT reset the completion state — only a new
-            // user prompt (applyUserMessage) starts a fresh turn.
+            snapshot.summary = message
+        } else if snapshot.isCompleted, !canResumeCompletedTurn(snapshot) {
+            // After hard task_complete, trailing assistant blocks may update the
+            // last message text but must not reopen the turn.
+            snapshot.summary = message
+        } else {
+            // Fresh activity or soft rate-limit resume.
             snapshot.currentTool = nil
             snapshot.currentCommandPreview = nil
             snapshot.phase = .running
+            snapshot.isCompleted = false
             snapshot.isInterrupted = false
+            snapshot.summary = message
         }
 
         if let timestamp {

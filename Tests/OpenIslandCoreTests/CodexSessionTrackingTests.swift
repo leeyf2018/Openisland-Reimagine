@@ -691,8 +691,11 @@ struct CodexSessionTrackingTests {
     }
 
     @Test
-    func codexRolloutReducerMarksPrimaryRateLimitWhileAwaitingAgentResponse() {
-        let initialSnapshot = CodexRolloutReducer.snapshot(for: [
+    func codexRolloutReducerDoesNotCompleteOnUsedPercentAlone() {
+        // Account window at 100% only drives the C chip. Mid-turn tool gaps
+        // (summary "Thinking.") must stay Running so the island does not show
+        // Done while Codex is still executing.
+        let snapshot = CodexRolloutReducer.snapshot(for: [
             rolloutLine(
                 timestamp: "2026-04-02T04:03:44.500Z",
                 type: "event_msg",
@@ -701,8 +704,50 @@ struct CodexSessionTrackingTests {
                     "message": "Inspect the Grafana panel.",
                 ]
             ),
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:44.800Z",
+                type: "response_item",
+                payload: [
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "ok",
+                ]
+            ),
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:45.000Z",
+                type: "event_msg",
+                payload: [
+                    "type": "token_count",
+                    "info": [
+                        "rate_limits": [
+                            "primary": [
+                                "used_percent": 100.0,
+                                "window_minutes": 300,
+                            ],
+                        ],
+                    ],
+                ]
+            ),
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:46.000Z",
+                type: "response_item",
+                payload: [
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "arguments": #"{"cmd":"git status -sb"}"#,
+                ]
+            ),
         ])
-        let limitedSnapshot = CodexRolloutReducer.snapshot(for: [
+
+        #expect(snapshot.phase == .running)
+        #expect(!snapshot.isCompleted)
+        #expect(snapshot.summary == "Running command")
+        #expect(snapshot.currentTool == "exec_command")
+    }
+
+    @Test
+    func codexRolloutReducerMarksHardRateLimitReachedType() {
+        let snapshot = CodexRolloutReducer.snapshot(for: [
             rolloutLine(
                 timestamp: "2026-04-02T04:03:44.500Z",
                 type: "event_msg",
@@ -722,14 +767,92 @@ struct CodexSessionTrackingTests {
                                 "used_percent": 100.0,
                                 "window_minutes": 300,
                             ],
+                            "rate_limit_reached_type": "primary",
                         ],
                     ],
                 ]
             ),
         ])
 
-        #expect(limitedSnapshot.phase == .completed)
-        #expect(limitedSnapshot.summary == "Rate limit reached.")
+        #expect(snapshot.phase == .completed)
+        #expect(snapshot.isCompleted)
+        #expect(snapshot.summary == "Rate limit reached.")
+    }
+
+    @Test
+    func codexRolloutReducerResumesAfterSoftRateLimitWhenToolsContinue() {
+        let snapshot = CodexRolloutReducer.snapshot(for: [
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:44.500Z",
+                type: "event_msg",
+                payload: [
+                    "type": "user_message",
+                    "message": "Keep building after quota signal.",
+                ]
+            ),
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:45.000Z",
+                type: "event_msg",
+                payload: [
+                    "type": "token_count",
+                    "info": [
+                        "rate_limits": [
+                            "rate_limit_reached_type": "primary",
+                            "primary": [
+                                "used_percent": 100.0,
+                                "window_minutes": 300,
+                            ],
+                        ],
+                    ],
+                ]
+            ),
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:46.000Z",
+                type: "response_item",
+                payload: [
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "arguments": #"{"cmd":"docker build ."}"#,
+                ]
+            ),
+        ])
+
+        #expect(snapshot.phase == .running)
+        #expect(!snapshot.isCompleted)
+        #expect(snapshot.summary == "Running command")
+        #expect(snapshot.currentCommandPreview == "docker build .")
+    }
+
+    @Test
+    func codexRolloutReducerDoesNotReopenAfterTaskCompleteTrailingTools() {
+        let snapshot = CodexRolloutReducer.snapshot(for: [
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:45.000Z",
+                type: "event_msg",
+                payload: [
+                    "type": "task_complete",
+                    "last_agent_message": "Final answer stays visible.",
+                ]
+            ),
+            rolloutLine(
+                timestamp: "2026-04-02T04:03:46.000Z",
+                type: "response_item",
+                payload: [
+                    "type": "function_call",
+                    "name": "exec_command",
+                    "arguments": #"{"cmd":"echo trailing"}"#,
+                ]
+            ),
+        ])
+
+        #expect(snapshot.phase == .completed)
+        #expect(snapshot.isCompleted)
+        #expect(snapshot.summary == "Final answer stays visible.")
+        #expect(snapshot.currentTool == nil)
+    }
+
+    @Test
+    func codexAppSessionReconcilerEndsMissingTranscriptAsStalled() {
         #expect(CodexAppSessionReconciler.stalledRunningEvents(for: [
             AgentSession(
                 id: "codex-session-stalled",
