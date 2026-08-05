@@ -741,7 +741,7 @@ struct CodexSessionTrackingTests {
 
         #expect(snapshot.phase == .running)
         #expect(!snapshot.isCompleted)
-        #expect(snapshot.summary == "Running command")
+        #expect(snapshot.summary == "Running command.")
         #expect(snapshot.currentTool == "exec_command")
     }
 
@@ -819,7 +819,7 @@ struct CodexSessionTrackingTests {
 
         #expect(snapshot.phase == .running)
         #expect(!snapshot.isCompleted)
-        #expect(snapshot.summary == "Running command")
+        #expect(snapshot.summary == "Running command.")
         #expect(snapshot.currentCommandPreview == "docker build .")
     }
 

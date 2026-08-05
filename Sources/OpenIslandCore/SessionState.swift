@@ -99,6 +99,13 @@ public struct SessionState: Equatable, Sendable {
             let preservesActionableState = keepsPendingApproval || keepsPendingQuestion
 
             if !preservesActionableState {
+                // Resume after a false/soft completion (e.g. quota 100% then tools
+                // continue): re-surface in the island by treating the session as live.
+                if payload.phase == .running, session.phase == .completed {
+                    session.isProcessAlive = true
+                    session.isSessionEnded = false
+                    session.processNotSeenCount = 0
+                }
                 session.phase = payload.phase
                 session.summary = payload.summary
                 if payload.phase != .waitingForApproval {
