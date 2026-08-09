@@ -1164,6 +1164,11 @@ struct IslandPanelView: View {
     }
 
     private func usageHelpText(for provider: UsageProviderPresentation) -> String {
+        if provider.id == "codex",
+           model.codexUsageSnapshot?.hasFullyUsedWindow == true {
+            return "当 Codex 额度恢复时，发送第一条命令后重置为 0"
+        }
+
         if provider.id == "opencode", let snap = model.openCodeUsageSnapshot {
             var parts: [String] = []
             if let used = snap.creditsUsed {

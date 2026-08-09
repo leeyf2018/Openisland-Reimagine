@@ -57,6 +57,10 @@ public struct CodexUsageSnapshot: Equatable, Codable, Sendable {
     public var isEmpty: Bool {
         windows.isEmpty
     }
+
+    public var hasFullyUsedWindow: Bool {
+        windows.contains { $0.usedPercentage >= 100 }
+    }
 }
 
 public enum CodexUsageLoader {
