@@ -4,6 +4,41 @@ import Testing
 
 struct CodexUsageTests {
     @Test
+    func codexUsageSnapshotDetectsFullyUsedWindow() {
+        let fullWindow = CodexUsageWindow(
+            key: "primary",
+            label: "7d",
+            usedPercentage: 100,
+            leftPercentage: 0,
+            windowMinutes: 10_080,
+            resetsAt: nil
+        )
+        let availableWindow = CodexUsageWindow(
+            key: "primary",
+            label: "7d",
+            usedPercentage: 99,
+            leftPercentage: 1,
+            windowMinutes: 10_080,
+            resetsAt: nil
+        )
+
+        #expect(
+            CodexUsageSnapshot(
+                sourceFilePath: "full.jsonl",
+                capturedAt: nil,
+                windows: [fullWindow]
+            ).hasFullyUsedWindow
+        )
+        #expect(
+            CodexUsageSnapshot(
+                sourceFilePath: "available.jsonl",
+                capturedAt: nil,
+                windows: [availableWindow]
+            ).hasFullyUsedWindow == false
+        )
+    }
+
+    @Test
     func codexUsageLoaderParsesLastTokenCountRateLimits() throws {
         let rootURL = temporaryRootURL(named: "codex-usage")
         let rolloutURL = rootURL
