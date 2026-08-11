@@ -12,7 +12,7 @@ struct CodexAppServerRateLimitsTests {
         client.stdin = pipe.fileHandleForWriting
         let capturedAt = Date(timeIntervalSince1970: 1_786_417_200)
 
-        let snapshotTask = Task {
+        let snapshotTask = Task.detached {
             try await client.readRateLimits(capturedAt: capturedAt)
         }
 
@@ -47,7 +47,7 @@ struct CodexAppServerRateLimitsTests {
 
         let pipe = Pipe()
         client.stdin = pipe.fileHandleForWriting
-        let snapshotTask = Task { try await client.readRateLimits() }
+        let snapshotTask = Task.detached { try await client.readRateLimits() }
 
         let requestData = pipe.fileHandleForReading.availableData
         let request = try #require(
