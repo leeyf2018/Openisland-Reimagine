@@ -290,7 +290,10 @@ public final class CodexAppServerClient: @unchecked Sendable {
         // Encode params via JSONEncoder, then decode back to Any for
         // JSONSerialization so we can embed it in the JSON-RPC envelope.
         let paramsData = try JSONEncoder().encode(params)
-        let paramsObj = try JSONSerialization.jsonObject(with: paramsData)
+        let paramsObj = try JSONSerialization.jsonObject(
+            with: paramsData,
+            options: .fragmentsAllowed
+        )
         let envelope: [String: Any] = [
             "jsonrpc": "2.0",
             "id": requestID,
