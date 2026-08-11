@@ -112,6 +112,9 @@ public final class CodexAppServerClient: @unchecked Sendable {
     /// hang past 30 s means codex is wedged and we must release the
     /// caller rather than pin its `Task` forever.
     var requestTimeoutSeconds: TimeInterval = 30
+    /// Internal test seam for observing a fully encoded request after its
+    /// continuation is registered. Production leaves this unset.
+    var onRequestSentForTests: ((Data) -> Void)?
     private var readBuffer = Data()
 
     /// Test-only accessor for asserting buffer state after `handleIncomingData`.
@@ -317,6 +320,7 @@ public final class CodexAppServerClient: @unchecked Sendable {
             lock.lock()
             pendingRequests[requestID] = continuation
             lock.unlock()
+            onRequestSentForTests?(line)
             stdin.write(line)
         }
     }

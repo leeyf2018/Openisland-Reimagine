@@ -7,29 +7,24 @@ struct CodexAppServerRateLimitsTests {
     func readRateLimitsMapsFreshServerWindow() async throws {
         let client = CodexAppServerClient()
         client.requestTimeoutSeconds = 1
-
-        let pipe = Pipe()
-        client.stdin = pipe.fileHandleForWriting
+        client.stdin = .nullDevice
         let capturedAt = Date(timeIntervalSince1970: 1_786_417_200)
-
-        let snapshotTask = Task.detached {
-            try await client.readRateLimits(capturedAt: capturedAt)
+        var observedMethod: String?
+        var observedNullParams = false
+        client.onRequestSentForTests = { requestData in
+            guard let request = try? JSONSerialization.jsonObject(with: requestData) as? [String: Any],
+                  let requestID = request["id"] as? Int else { return }
+            observedMethod = request["method"] as? String
+            observedNullParams = request["params"] is NSNull
+            let response = """
+            {"id":\(requestID),"result":{"rateLimits":{"limitId":"codex","planType":"plus","primary":{"usedPercent":2,"windowDurationMins":10080,"resetsAt":1787020203},"secondary":null}}}
+            """
+            client.handleIncomingData(Data((response + "\n").utf8))
         }
 
-        let requestData = pipe.fileHandleForReading.availableData
-        let request = try #require(
-            JSONSerialization.jsonObject(with: requestData) as? [String: Any]
-        )
-        let requestID = try #require(request["id"] as? Int)
-        #expect(request["method"] as? String == "account/rateLimits/read")
-        #expect(request["params"] is NSNull)
-
-        let response = """
-        {"id":\(requestID),"result":{"rateLimits":{"limitId":"codex","planType":"plus","primary":{"usedPercent":2,"windowDurationMins":10080,"resetsAt":1787020203},"secondary":null}}}
-        """
-        client.handleIncomingData(Data((response + "\n").utf8))
-
-        let snapshot = try await snapshotTask.value
+        let snapshot = try await client.readRateLimits(capturedAt: capturedAt)
+        #expect(observedMethod == "account/rateLimits/read")
+        #expect(observedNullParams)
         #expect(snapshot?.sourceFilePath == "codex-app-server://account/rateLimits/read")
         #expect(snapshot?.capturedAt == capturedAt)
         #expect(snapshot?.limitID == "codex")
@@ -44,18 +39,13 @@ struct CodexAppServerRateLimitsTests {
     func readRateLimitsReturnsNilWhenServerHasNoWindow() async throws {
         let client = CodexAppServerClient()
         client.requestTimeoutSeconds = 1
+        client.stdin = .nullDevice
+        client.onRequestSentForTests = { requestData in
+            guard let request = try? JSONSerialization.jsonObject(with: requestData) as? [String: Any],
+                  let requestID = request["id"] as? Int else { return }
+            client.handleIncomingData(Data("{\"id\":\(requestID),\"result\":{\"rateLimits\":null}}\n".utf8))
+        }
 
-        let pipe = Pipe()
-        client.stdin = pipe.fileHandleForWriting
-        let snapshotTask = Task.detached { try await client.readRateLimits() }
-
-        let requestData = pipe.fileHandleForReading.availableData
-        let request = try #require(
-            JSONSerialization.jsonObject(with: requestData) as? [String: Any]
-        )
-        let requestID = try #require(request["id"] as? Int)
-        client.handleIncomingData(Data("{\"id\":\(requestID),\"result\":{\"rateLimits\":null}}\n".utf8))
-
-        #expect(try await snapshotTask.value == nil)
+        #expect(try await client.readRateLimits() == nil)
     }
 }
