@@ -79,6 +79,23 @@ public enum CodexAppServerNotification: Sendable {
     case unknown(method: String)
 }
 
+private struct CodexAccountRateLimitsResult: Decodable {
+    let rateLimits: CodexAppServerRateLimitSnapshot?
+}
+
+private struct CodexAppServerRateLimitSnapshot: Decodable {
+    let limitId: String?
+    let planType: String?
+    let primary: CodexAppServerRateLimitWindow?
+    let secondary: CodexAppServerRateLimitWindow?
+}
+
+private struct CodexAppServerRateLimitWindow: Decodable {
+    let usedPercent: Double
+    let windowDurationMins: Int
+    let resetsAt: Int?
+}
+
 // MARK: - JSON-RPC transport
 
 /// A lightweight JSON-RPC client that communicates with Codex app-server
@@ -195,6 +212,58 @@ public final class CodexAppServerClient: @unchecked Sendable {
         let data = try await sendRequest(method: "thread/list", params: Params(limit: limit))
         let result = try JSONDecoder().decode(Result.self, from: data)
         return result.threads
+    }
+
+    /// Read the authoritative account rate-limit snapshot from Codex itself.
+    ///
+    /// Rollout JSONL remains the offline fallback, but it cannot observe a
+    /// server-side early reset until the next turn writes a token_count event.
+    public func readRateLimits(capturedAt: Date = .now) async throws -> CodexUsageSnapshot? {
+        let noParams: Bool? = nil
+        let data = try await sendRequest(method: "account/rateLimits/read", params: noParams)
+        let result = try JSONDecoder().decode(CodexAccountRateLimitsResult.self, from: data)
+        guard let rateLimits = result.rateLimits else { return nil }
+
+        let windows: [CodexUsageWindow] = [
+            rateLimits.primary.map { usageWindow(key: "primary", value: $0) },
+            rateLimits.secondary.map { usageWindow(key: "secondary", value: $0) },
+        ].compactMap { $0 }
+        guard !windows.isEmpty else { return nil }
+
+        return CodexUsageSnapshot(
+            sourceFilePath: "codex-app-server://account/rateLimits/read",
+            capturedAt: capturedAt,
+            planType: rateLimits.planType,
+            limitID: rateLimits.limitId,
+            windows: windows
+        )
+    }
+
+    private func usageWindow(
+        key: String,
+        value: CodexAppServerRateLimitWindow
+    ) -> CodexUsageWindow {
+        CodexUsageWindow(
+            key: key,
+            label: Self.windowLabel(forMinutes: value.windowDurationMins),
+            usedPercentage: value.usedPercent,
+            leftPercentage: max(0, 100 - value.usedPercent),
+            windowMinutes: value.windowDurationMins,
+            resetsAt: value.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+        )
+    }
+
+    private static func windowLabel(forMinutes minutes: Int) -> String {
+        let days = minutes / 1_440
+        let remainingMinutesAfterDays = minutes % 1_440
+        let hours = remainingMinutesAfterDays / 60
+        let remainingMinutes = remainingMinutesAfterDays % 60
+
+        if days > 0, hours == 0, remainingMinutes == 0 { return "\(days)d" }
+        if days > 0, hours > 0 { return "\(days)d \(hours)h" }
+        if hours > 0, remainingMinutes == 0 { return "\(hours)h" }
+        if hours > 0 { return "\(hours)h \(remainingMinutes)m" }
+        return "\(minutes)m"
     }
 
     // MARK: - JSON-RPC transport

@@ -63,6 +63,11 @@ Source history remains in `main` git; only the **downloadable .app.zip surface**
 | **G** | After weekly reset, last log line can keep high % until CLI re-fetches | Period rollover → 0% used; multi `unified.jsonl*` candidates |
 | **O** | Live `gh` fail + old cache after monthly reset can freeze credits | `period_reset` zero + 7-day offline cache max |
 
+Codex usage now also prefers the read-only `account/rateLimits/read` snapshot
+from the already-running local app-server connection. This closes the remaining
+early-reset gap where the server starts a new window before any fresh rollout
+`token_count` line exists; JSONL scanning remains the offline fallback.
+
 ### Sessions auto-popup fix (1.1.6-grok1.23)
 
 | Issue | Root cause | Fix |
