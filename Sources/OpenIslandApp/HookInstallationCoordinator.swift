@@ -799,11 +799,25 @@ final class HookInstallationCoordinator {
                 let snapshot = try await Task.detached(priority: .utility) {
                     try CodexUsageLoader.load()
                 }.value
-                self.codexUsageSnapshot = snapshot
+                if let snapshot {
+                    self.acceptCodexUsageSnapshot(snapshot)
+                }
             } catch {
                 self.onStatusMessage?("Failed to read Codex usage state: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Accept the newest snapshot regardless of whether it came from Codex's
+    /// live account API or the offline rollout fallback. This prevents an old
+    /// JSONL value from overwriting a just-fetched server-side reset.
+    func acceptCodexUsageSnapshot(_ snapshot: CodexUsageSnapshot) {
+        if let currentCapturedAt = codexUsageSnapshot?.capturedAt,
+           let incomingCapturedAt = snapshot.capturedAt,
+           incomingCapturedAt < currentCapturedAt {
+            return
+        }
+        codexUsageSnapshot = snapshot
     }
 
     func refreshGrokUsageState() {

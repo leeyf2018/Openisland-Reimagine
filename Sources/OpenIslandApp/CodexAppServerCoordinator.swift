@@ -17,6 +17,9 @@ final class CodexAppServerCoordinator {
     @ObservationIgnored
     private var connectTask: Task<Void, Never>?
 
+    @ObservationIgnored
+    private var usageMonitorTask: Task<Void, Never>?
+
     /// Callback to emit AgentEvents into AppModel.
     @ObservationIgnored
     var onEvent: ((AgentEvent) -> Void)?
@@ -24,6 +27,14 @@ final class CodexAppServerCoordinator {
     /// Callback to log status messages.
     @ObservationIgnored
     var onStatusMessage: ((String) -> Void)?
+
+    /// Delivers authoritative Codex account usage to the existing usage UI.
+    @ObservationIgnored
+    var onUsageSnapshot: ((CodexUsageSnapshot) -> Void)?
+
+    /// Keeps the external read disabled unless the user enabled usage display.
+    @ObservationIgnored
+    var shouldSyncUsage: (() -> Bool)?
 
     /// Returns `true` if a session with the given id is already tracked.
     /// Used to avoid re-emitting `sessionStarted` (which rebuilds the
@@ -74,6 +85,7 @@ final class CodexAppServerCoordinator {
 
                 // Fetch currently loaded threads and create sessions.
                 await self.syncLoadedThreads()
+                self.startUsageMonitoringIfNeeded()
             } catch {
                 self.connectTask = nil
                 self.onStatusMessage?("Failed to connect to Codex app-server: \(error.localizedDescription)")
@@ -85,9 +97,27 @@ final class CodexAppServerCoordinator {
     func disconnect() {
         connectTask?.cancel()
         connectTask = nil
+        usageMonitorTask?.cancel()
+        usageMonitorTask = nil
         client?.stop()
         client = nil
         isConnected = false
+    }
+
+    /// Starts with an immediate live read, then refreshes periodically. JSONL
+    /// polling remains active as an offline fallback in HookInstallationCoordinator.
+    func startUsageMonitoringIfNeeded() {
+        guard isConnected,
+              shouldSyncUsage?() == true,
+              usageMonitorTask == nil else { return }
+
+        usageMonitorTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await self.syncRateLimits()
+                try? await Task.sleep(for: .seconds(120))
+            }
+        }
     }
 
     // MARK: - Thread sync
@@ -110,6 +140,18 @@ final class CodexAppServerCoordinator {
             }
         } catch {
             onStatusMessage?("Failed to list loaded Codex threads: \(error.localizedDescription)")
+        }
+    }
+
+    private func syncRateLimits() async {
+        guard let client, shouldSyncUsage?() == true else { return }
+        do {
+            if let snapshot = try await client.readRateLimits() {
+                onUsageSnapshot?(snapshot)
+            }
+        } catch {
+            // The local rollout loader remains the fallback. Avoid replacing a
+            // valid cached snapshot or spamming the status surface on failure.
         }
     }
 
@@ -233,8 +275,12 @@ final class CodexAppServerCoordinator {
                 )
             ))
 
-        case .unknown:
-            break
+        case .unknown(let method):
+            if method == "account/rateLimits/updated" {
+                Task { [weak self] in
+                    await self?.syncRateLimits()
+                }
+            }
         }
     }
 

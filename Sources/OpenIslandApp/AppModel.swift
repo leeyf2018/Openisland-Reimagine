@@ -255,6 +255,7 @@ final class AppModel {
             if showCodexUsage {
                 hooks.refreshCodexUsageState()
                 hooks.startCodexUsageMonitoringIfNeeded()
+                codexAppServer.startUsageMonitoringIfNeeded()
                 hooks.refreshGrokUsageState()
                 hooks.startGrokUsageMonitoringIfNeeded()
                 hooks.refreshOpenCodeUsageState()
@@ -709,6 +710,12 @@ final class AppModel {
         }
         codexAppServer.onStatusMessage = { [weak self] message in
             self?.lastActionMessage = message
+        }
+        codexAppServer.shouldSyncUsage = { [weak self] in
+            self?.showCodexUsage == true
+        }
+        codexAppServer.onUsageSnapshot = { [weak self] snapshot in
+            self?.hooks.acceptCodexUsageSnapshot(snapshot)
         }
         codexAppServer.isSessionTracked = { [weak self] id in
             self?.state.session(id: id) != nil
