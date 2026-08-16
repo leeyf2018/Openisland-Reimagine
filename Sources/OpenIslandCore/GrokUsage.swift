@@ -201,10 +201,15 @@ public enum GrokUsageLoader {
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               object["msg"] as? String == "billing: fetched credits config",
               let context = object["ctx"] as? [String: Any],
-              let config = context["config"] as? [String: Any],
-              let rawUsedPercentage = number(from: config["creditUsagePercent"]) else {
+              let config = context["config"] as? [String: Any] else {
             return nil
         }
+
+        // After a usage reset, Grok CLI still writes a successful billing
+        // fetch but omits `creditUsagePercent` (observed 2026-08-13 and
+        // 2026-08-16). Treating that as "unparseable" walked back to the
+        // last 100% line and froze the island. Missing/null = 0 used.
+        let rawUsedPercentage = number(from: config["creditUsagePercent"]) ?? 0
 
         let currentPeriod = config["currentPeriod"] as? [String: Any]
         let periodStart = date(from: currentPeriod?["start"] ?? config["billingPeriodStart"])
@@ -218,6 +223,7 @@ public enum GrokUsageLoader {
             periodStart: periodStart,
             resetsAt: resetsAt,
             subscriptionTier: string(from: config["subscriptionTier"])
+                ?? string(from: context["subscriptionTier"])
         )
     }
 
