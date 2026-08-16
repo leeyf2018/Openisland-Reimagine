@@ -297,6 +297,32 @@ struct CodexUsageTests {
         #expect(snapshot?.windows.first?.roundedUsedPercentage == 45)
         #expect(snapshot?.capturedAt == isoDate("2026-08-04T10:03:07.175Z"))
     }
+
+    @Test
+    func codexUsageZerosWindowAfterResetsAtElapses() {
+        let stale = CodexUsageSnapshot(
+            sourceFilePath: "jsonl",
+            capturedAt: isoDate("2026-08-16T03:00:00Z"),
+            planType: "plus",
+            windows: [
+                CodexUsageWindow(
+                    key: "primary",
+                    label: "7d",
+                    usedPercentage: 100,
+                    leftPercentage: 0,
+                    windowMinutes: 10_080,
+                    resetsAt: isoDate("2026-08-16T02:00:00Z")
+                ),
+            ]
+        )
+
+        let normalized = CodexUsageLoader.normalizeForCurrentPeriod(
+            stale,
+            now: isoDate("2026-08-16T03:30:00Z")!
+        )
+        #expect(normalized.windows.first?.roundedUsedPercentage == 0)
+        #expect(normalized.windows.first?.leftPercentage == 100)
+    }
 }
 
 private func temporaryRootURL(named name: String) -> URL {
