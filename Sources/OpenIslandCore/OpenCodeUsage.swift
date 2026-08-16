@@ -88,17 +88,83 @@ public enum OpenCodeUsageLoader {
     /// **Period-reset guard:** when the cached `resetsAt` is already past (monthly
     /// Copilot window rolled over) and live fetch is unavailable, do **not** keep
     /// showing pre-reset `credits_used` — same class of bug as Codex C after reset.
+    ///
+    /// **Stale-live guard:** GitHub may bump `quota_reset_date` to the next month
+    /// while still reporting last month's `credits_used` (same class as Grok
+    /// omitting `creditUsagePercent` after reset). Detect that and surface 0.
     public static func load(
         cacheURL: URL = defaultCacheURL,
         fileManager: FileManager = .default,
         now: Date = .now
     ) throws -> OpenCodeUsageSnapshot? {
+        let previous = try? decodeCache(from: cacheURL, fileManager: fileManager)
         if let live = try? fetchLiveSnapshot() {
-            let normalized = normalizeForCurrentPeriod(live, now: now)
+            let reconciled = reconcileStaleLiveSnapshot(live, previous: previous, now: now)
+            let normalized = normalizeForCurrentPeriod(reconciled, now: now)
             try? writeCache(normalized, to: cacheURL, fileManager: fileManager)
             return normalized
         }
         return try? readCache(from: cacheURL, fileManager: fileManager, now: now)
+    }
+
+    /// Drop last-period spend when a live fetch is clearly from the old window.
+    public static func reconcileStaleLiveSnapshot(
+        _ live: OpenCodeUsageSnapshot,
+        previous: OpenCodeUsageSnapshot?,
+        now: Date = .now
+    ) -> OpenCodeUsageSnapshot {
+        if isCapturedBeforeCurrentWindow(live) {
+            return zeroed(live, now: now, basis: "stale_timestamp")
+        }
+
+        guard let previous,
+              let liveReset = live.resetsAt,
+              let previousReset = previous.resetsAt,
+              liveReset > previousReset.addingTimeInterval(12 * 3_600),
+              let liveCredits = live.creditsUsed,
+              let previousCredits = previous.creditsUsed,
+              previousCredits > 0,
+              liveCredits + 0.5 >= previousCredits else {
+            return live
+        }
+
+        return zeroed(live, now: now, basis: "window_rolled_stale_credits")
+    }
+
+    /// `timestamp_utc` still sitting in the previous month after `resetsAt`
+    /// moved forward — the credits number is leftover, not new spend.
+    public static func isCapturedBeforeCurrentWindow(_ snapshot: OpenCodeUsageSnapshot) -> Bool {
+        guard let resetsAt = snapshot.resetsAt,
+              let capturedAt = snapshot.capturedAt else {
+            return false
+        }
+
+        let calendar = Calendar(identifier: .gregorian)
+        let windowStart = calendar.date(byAdding: .month, value: -1, to: resetsAt)
+            ?? resetsAt.addingTimeInterval(-30 * 86_400)
+        // 6h slack so a snapshot taken just after the previous reset is kept.
+        return capturedAt.addingTimeInterval(6 * 3_600) < windowStart
+    }
+
+    private static func zeroed(
+        _ snapshot: OpenCodeUsageSnapshot,
+        now: Date,
+        basis: String
+    ) -> OpenCodeUsageSnapshot {
+        OpenCodeUsageSnapshot(
+            source: snapshot.source,
+            capturedAt: now,
+            usedPercentage: 0,
+            remainingPercentage: 100,
+            isUnlimited: snapshot.isUnlimited,
+            planType: snapshot.planType,
+            quotaID: snapshot.quotaID,
+            creditsUsed: 0,
+            creditsEntitlement: snapshot.creditsEntitlement
+                ?? planDefaultPremiumAllowance(snapshot.planType),
+            usageBasis: basis,
+            resetsAt: snapshot.resetsAt
+        )
     }
 
     /// When the quota window end is in the past, surface a post-reset zero-spend
@@ -357,10 +423,9 @@ public enum OpenCodeUsageLoader {
         guard fileManager.fileExists(atPath: url.path) else {
             return nil
         }
-        let data = try Data(contentsOf: url)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let snapshot = try decoder.decode(OpenCodeUsageSnapshot.self, from: data)
+        guard let snapshot = try decodeCache(from: url, fileManager: fileManager) else {
+            return nil
+        }
 
         if let capturedAt = snapshot.capturedAt,
            now.timeIntervalSince(capturedAt) > maxOfflineCacheAge {
@@ -369,6 +434,19 @@ public enum OpenCodeUsageLoader {
         }
 
         return normalizeForCurrentPeriod(snapshot, now: now)
+    }
+
+    private static func decodeCache(
+        from url: URL,
+        fileManager: FileManager
+    ) throws -> OpenCodeUsageSnapshot? {
+        guard fileManager.fileExists(atPath: url.path) else {
+            return nil
+        }
+        let data = try Data(contentsOf: url)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(OpenCodeUsageSnapshot.self, from: data)
     }
 
     // MARK: - Process helpers

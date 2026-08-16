@@ -233,12 +233,15 @@ public final class CodexAppServerClient: @unchecked Sendable {
         ].compactMap { $0 }
         guard !windows.isEmpty else { return nil }
 
-        return CodexUsageSnapshot(
-            sourceFilePath: "codex-app-server://account/rateLimits/read",
-            capturedAt: capturedAt,
-            planType: rateLimits.planType,
-            limitID: rateLimits.limitId,
-            windows: windows
+        return CodexUsageLoader.normalizeForCurrentPeriod(
+            CodexUsageSnapshot(
+                sourceFilePath: "codex-app-server://account/rateLimits/read",
+                capturedAt: capturedAt,
+                planType: rateLimits.planType,
+                limitID: rateLimits.limitId,
+                windows: windows
+            ),
+            now: capturedAt
         )
     }
 

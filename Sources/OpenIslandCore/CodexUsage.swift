@@ -170,7 +170,35 @@ public enum CodexUsageLoader {
             }
         }
 
-        return bestSnapshot
+        return bestSnapshot.map { normalizeForCurrentPeriod($0) }
+    }
+
+    /// When a window's `resetsAt` is already past and no live account read is
+    /// available, do not keep showing the pre-reset 100% (Grok/Copilot class).
+    public static func normalizeForCurrentPeriod(
+        _ snapshot: CodexUsageSnapshot,
+        now: Date = .now
+    ) -> CodexUsageSnapshot {
+        let windows = snapshot.windows.map { window -> CodexUsageWindow in
+            guard let resetsAt = window.resetsAt, resetsAt <= now else {
+                return window
+            }
+            return CodexUsageWindow(
+                key: window.key,
+                label: window.label,
+                usedPercentage: 0,
+                leftPercentage: 100,
+                windowMinutes: window.windowMinutes,
+                resetsAt: resetsAt
+            )
+        }
+        return CodexUsageSnapshot(
+            sourceFilePath: snapshot.sourceFilePath,
+            capturedAt: snapshot.capturedAt,
+            planType: snapshot.planType,
+            limitID: snapshot.limitID,
+            windows: windows
+        )
     }
 
     private static func loadLatestSnapshot(from fileURL: URL, modifiedAt: Date) -> CodexUsageSnapshot? {
