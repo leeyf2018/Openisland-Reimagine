@@ -61,6 +61,7 @@ Source history remains in `main` git; only the **downloadable .app.zip surface**
 |------|--------|-----|
 | **C** | Stale Codex % from `~/.codex/sessions` only | Also scan `archived_sessions`; pick newest rate_limits **event** time |
 | **G** | After weekly reset, last log line can keep high % until CLI re-fetches | Period rollover → 0% used; multi `unified.jsonl*` candidates |
+| **G** | Mid-period usage reset omits `creditUsagePercent`; island stayed at 100% | Missing/null percent on a newer billing fetch = **0%** (1.1.6-grok1.27) |
 | **O** | Live `gh` fail + old cache after monthly reset can freeze credits | `period_reset` zero + 7-day offline cache max |
 
 Codex usage now also prefers the read-only `account/rateLimits/read` snapshot

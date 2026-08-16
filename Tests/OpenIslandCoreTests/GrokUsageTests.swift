@@ -78,6 +78,60 @@ struct GrokUsageTests {
         #expect(snapshot?.resetsAt == isoDate("2026-08-12T15:11:55.430921Z"))
     }
 
+    /// After a mid-period usage reset, Grok CLI omits `creditUsagePercent`
+    /// entirely. The island must take that newer line as 0%, not keep the
+    /// previous 100% just because the field is missing.
+    @Test
+    func grokUsageLoaderTreatsMissingPercentAfterResetAsZero() throws {
+        let logURL = temporaryLogURL()
+        defer { try? FileManager.default.removeItem(at: logURL.deletingLastPathComponent()) }
+
+        try writeLog(
+            [
+                billingLine(timestamp: "2026-08-16T03:18:04.951Z", usedPercentage: 100),
+                billingLine(
+                    timestamp: "2026-08-16T03:26:02.460Z",
+                    usedPercentage: .omitted,
+                    periodStart: "2026-08-12T15:11:55.430921+00:00",
+                    periodEnd: "2026-08-19T15:11:55.430921+00:00"
+                ),
+            ],
+            to: logURL
+        )
+
+        let snapshot = try GrokUsageLoader.load(
+            from: logURL,
+            now: isoDate("2026-08-16T03:27:00.000Z")!
+        )
+
+        #expect(snapshot?.roundedUsedPercentage == 0)
+        #expect(snapshot?.capturedAt == isoDate("2026-08-16T03:26:02.460Z"))
+        #expect(snapshot?.periodStart == isoDate("2026-08-12T15:11:55.430921Z"))
+        #expect(snapshot?.resetsAt == isoDate("2026-08-19T15:11:55.430921Z"))
+        #expect(snapshot?.subscriptionTier == "SuperGrok")
+    }
+
+    @Test
+    func grokUsageLoaderTreatsExplicitNullPercentAsZero() throws {
+        let logURL = temporaryLogURL()
+        defer { try? FileManager.default.removeItem(at: logURL.deletingLastPathComponent()) }
+
+        try writeLog(
+            [
+                billingLine(timestamp: "2026-08-16T03:18:04.951Z", usedPercentage: 100),
+                billingLine(timestamp: "2026-08-16T03:22:06.652Z", usedPercentage: .null),
+            ],
+            to: logURL
+        )
+
+        let snapshot = try GrokUsageLoader.load(
+            from: logURL,
+            now: isoDate("2026-08-16T03:23:00.000Z")!
+        )
+        #expect(snapshot?.roundedUsedPercentage == 0)
+        #expect(snapshot?.capturedAt == isoDate("2026-08-16T03:22:06.652Z"))
+    }
+
     @Test
     func grokUsageLoaderPrefersNewerBillingAcrossRotatedLogs() throws {
         let directory = temporaryLogURL().deletingLastPathComponent()
@@ -117,21 +171,46 @@ private func writeLog(_ lines: [String], to url: URL) throws {
     try lines.joined(separator: "\n").appending("\n").write(to: url, atomically: true, encoding: .utf8)
 }
 
-private func billingLine(timestamp: String, usedPercentage: Double) -> String {
-    jsonLine(
+private enum BillingPercent: ExpressibleByFloatLiteral {
+    case value(Double)
+    case omitted
+    case null
+
+    init(floatLiteral value: Double) {
+        self = .value(value)
+    }
+}
+
+private func billingLine(
+    timestamp: String,
+    usedPercentage: BillingPercent,
+    periodStart: String = "2026-07-29T15:11:55.430921Z",
+    periodEnd: String = "2026-08-05T15:11:55.430921Z"
+) -> String {
+    var config: [String: Any] = [
+        "currentPeriod": [
+            "type": "USAGE_PERIOD_TYPE_WEEKLY",
+            "start": periodStart,
+            "end": periodEnd,
+        ],
+    ]
+
+    switch usedPercentage {
+    case .value(let value):
+        config["creditUsagePercent"] = value
+    case .null:
+        config["creditUsagePercent"] = NSNull()
+    case .omitted:
+        break
+    }
+
+    return jsonLine(
         [
             "ts": timestamp,
             "msg": "billing: fetched credits config",
             "ctx": [
-                "config": [
-                    "creditUsagePercent": usedPercentage,
-                    "currentPeriod": [
-                        "type": "USAGE_PERIOD_TYPE_WEEKLY",
-                        "start": "2026-07-29T15:11:55.430921Z",
-                        "end": "2026-08-05T15:11:55.430921Z",
-                    ],
-                    "subscriptionTier": "SuperGrok",
-                ],
+                "config": config,
+                "subscriptionTier": "SuperGrok",
             ],
         ]
     )
