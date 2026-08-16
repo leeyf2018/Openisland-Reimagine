@@ -62,7 +62,7 @@ Source history remains in `main` git; only the **downloadable .app.zip surface**
 | **C** | Stale Codex % from `~/.codex/sessions` only | Also scan `archived_sessions`; pick newest rate_limits **event** time |
 | **G** | After weekly reset, last log line can keep high % until CLI re-fetches | Period rollover → 0% used; multi `unified.jsonl*` candidates |
 | **G** | Mid-period usage reset omits `creditUsagePercent`; island stayed at 100% | Missing/null percent on a newer billing fetch = **0%** (1.1.6-grok1.27) |
-| **O** | Sept 1 Copilot reset may keep `credits_used` (e.g. 2981) while only `quota_reset_date` moves | Stale timestamp / reset-date-advanced-but-credits-unchanged → **0** (local 1.1.6-grok1.28, not published yet) |
+| **O** | Sept 1 Copilot reset may keep `credits_used` (e.g. 2981) while only `quota_reset_date` moves | Stale timestamp / reset-date-advanced-but-credits-unchanged → **0** (1.1.6-grok1.28) |
 | **C** | Live RPC down after window end left JSONL at 100% | Window `resetsAt` in the past → **0%** |
 | **O** | Live `gh` fail + old cache after monthly reset can freeze credits | `period_reset` zero + 7-day offline cache max |
 
