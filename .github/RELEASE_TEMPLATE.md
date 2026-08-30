@@ -24,11 +24,5 @@ Brief English summary of this release.
 2. Requires **macOS 14+**. Supports both **Apple Silicon** and **Intel** Macs.
    需要 **macOS 14+**。同时支持 **Apple Silicon** 和 **Intel** Mac。
 
-**Or via Homebrew | 或使用 Homebrew**:
-
-```bash
-brew install --cask octane0411/tap/openisland
-```
-
-> This build is signed and notarized with Apple Developer ID. You can open it directly without any security workaround.
-> 本版本已通过 Apple 签名公证，可直接打开运行，无需任何安全设置。
+> This build uses Reimagine's stable self-signed identity and is not Apple notarized. On first launch, right-click → **Open**.
+> 本版本使用 Reimagine 自有稳定签名，但没有 Apple 公证。第一次启动请右键点击应用，再选择“打开”。

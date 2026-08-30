@@ -4,6 +4,17 @@ import Testing
 
 struct PerformancePolicyTests {
     @Test
+    func workBuddyPollingUsesTenMinuteCadence() {
+        #expect(WorkBuddyUsageRefreshPolicy.pollingInterval == .seconds(600))
+    }
+
+    @Test
+    func workBuddyForcesOfficialRefreshOnlyWhileBackgrounded() {
+        #expect(WorkBuddyUsageRefreshPolicy.shouldForceRefresh(isApplicationActive: false))
+        #expect(!WorkBuddyUsageRefreshPolicy.shouldForceRefresh(isApplicationActive: true))
+    }
+
+    @Test
     func idleUnifiedBarsDoesNotRequireAnimationTimeline() {
         #expect(UnifiedBars.Mode.idle.timelineInterval == nil)
     }

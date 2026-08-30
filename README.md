@@ -35,7 +35,7 @@ This is **not** a ground-up rewrite. It is a **derivative** of Open Island with 
 - Notch header chips: **C** (Codex %), **G** (Grok %), **W** (WorkBuddy points remaining), **O** (GitHub Copilot **credits used**)
 - Compact vertical chips + reset-day hints `(N)`
 - Grok usage: local billing log + ~15s poll
-- WorkBuddy: current whole-point balance via its accessibility UI, with periodic and manual refresh
+- WorkBuddy: current whole-point balance via its accessibility UI, with startup/manual refresh and a 10-minute background poll
 - OpenCode / Copilot: `gh api /copilot_internal/user` (Business seats use `credits_used`)
 
 Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/BUILDING.md](docs/BUILDING.md) · Docs map: [docs/index.md](docs/index.md) · CI harness: [`scripts/harness.sh`](scripts/harness.sh)
@@ -47,7 +47,7 @@ Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/
 | **Prebuilt app (recommended for most people)** | Open [**Releases**](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest) → download `Open.Island.zip` (or the DMG when present) → unzip → drag `Open Island.app` to `/Applications` |
 | **Source ZIP only** | **Code → Download ZIP**, or [main.zip](https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip) → then build yourself ([docs/BUILDING.md](docs/BUILDING.md)) |
 
-**First launch (prebuilt):** the Release app is **ad-hoc signed** (not Apple Developer ID / notarized). macOS may block it once:
+**First launch (prebuilt):** the Release app uses a stable Reimagine self-signed identity (not Apple Developer ID / notarized). macOS may block it once:
 
 1. Right-click `Open Island.app` → **Open** → confirm, **or**
 2. **System Settings → Privacy & Security** → allow the blocked app

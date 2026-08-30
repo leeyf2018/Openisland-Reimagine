@@ -34,25 +34,36 @@ jobs:
           brew install create-dmg
           pip3 install --break-system-packages Pillow
 
-      # Signing is optional for forks that ship ad-hoc / manual Latest zips.
-      # Empty APPLE_CERTIFICATE_P12 → skip keychain import, package without
-      # Developer ID, notary_ready=false (same UX as local Reimagine releases).
+      # Reimagine uses a stable self-signed identity by default. This keeps the
+      # app's TCC identity stable without an Apple Developer Program account.
+      # Apple Developer ID remains an optional future upgrade.
       - name: Import signing certificate
         id: signing
         env:
-          CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          CERTIFICATE_P12: ${{ secrets.REIMAGINE_CERTIFICATE_P12 || secrets.APPLE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.REIMAGINE_CERTIFICATE_PASSWORD || secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.REIMAGINE_SIGNING_IDENTITY || secrets.APPLE_SIGNING_IDENTITY }}
+          SIGNING_MODE: ${{ vars.REIMAGINE_SIGNING_MODE }}
           SKIP_NOTARIZE: ${{ vars.SKIP_NOTARIZE }}
         run: |
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
           echo "keychain_path=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
 
           if [[ -z "${CERTIFICATE_P12:-}" ]]; then
-            echo "::warning::APPLE_CERTIFICATE_P12 not set — packaging with ad-hoc signature (no Developer ID, no notarization)."
+            echo "::warning::No signing certificate is configured — packaging with an ad-hoc signature."
             echo "has_identity=false" >> "$GITHUB_OUTPUT"
             echo "notary_ready=false" >> "$GITHUB_OUTPUT"
+            echo "mode=adhoc" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          : "${CERTIFICATE_PASSWORD:?Certificate password is required}"
+          : "${SIGNING_IDENTITY:?Signing identity is required}"
+          SIGNING_MODE="${SIGNING_MODE:-developer-id}"
+          [[ "$SIGNING_MODE" == "self-signed" || "$SIGNING_MODE" == "developer-id" ]] || {
+            echo "::error::REIMAGINE_SIGNING_MODE must be self-signed or developer-id"
+            exit 1
+          }
 
           # Decode the p12 certificate from base64
           CERT_FILE="$(mktemp).p12"
@@ -70,6 +81,12 @@ jobs:
             -A \
             -f pkcs12 \
             -k "$KEYCHAIN_PATH"
+
+          if ! security find-identity -p codesigning -v "$KEYCHAIN_PATH" | grep -Fq "\"$SIGNING_IDENTITY\""; then
+            echo "::error::Imported certificate does not match SIGNING_IDENTITY: $SIGNING_IDENTITY"
+            exit 1
+          fi
+
           security set-key-partition-list \
             -S apple-tool:,apple: \
             -k "$KEYCHAIN_PASSWORD" \
@@ -78,10 +95,13 @@ jobs:
           # Add the keychain to the search list
           security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
 
-          # A release is notarized unless SKIP_NOTARIZE is explicitly enabled.
+          # Self-signed certificates cannot use Apple's notarization service.
           # Credential validation failures must stop the workflow before any
           # release assets or update metadata are published.
-          if [[ "${SKIP_NOTARIZE:-}" == "true" ]]; then
+          if [[ "$SIGNING_MODE" == "self-signed" ]]; then
+            echo "Self-signed identity imported; Apple notarization is not applicable."
+            echo "notary_ready=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${SKIP_NOTARIZE:-}" == "true" ]]; then
             echo "Skipping notarytool credential setup because SKIP_NOTARIZE is true."
             echo "notary_ready=false" >> "$GITHUB_OUTPUT"
           else
@@ -94,6 +114,7 @@ jobs:
           fi
 
           echo "has_identity=true" >> "$GITHUB_OUTPUT"
+          echo "mode=$SIGNING_MODE" >> "$GITHUB_OUTPUT"
           # Clean up
           rm -f "$CERT_FILE"
 
@@ -103,13 +124,14 @@ jobs:
           OPEN_ISLAND_BUNDLE_ID: ${{ steps.version.outputs.bundle_id }}
           OPEN_ISLAND_VERSION: ${{ steps.version.outputs.version }}
           OPEN_ISLAND_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
-          OPEN_ISLAND_SIGN_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          OPEN_ISLAND_SIGN_IDENTITY: ${{ secrets.REIMAGINE_SIGNING_IDENTITY || secrets.APPLE_SIGNING_IDENTITY }}
+          OPEN_ISLAND_CODE_SIGN_TIMESTAMP: ${{ steps.signing.outputs.mode == 'self-signed' && 'false' || 'true' }}
           OPEN_ISLAND_UNIVERSAL: "true"
         run: |
           if [[ "${{ steps.signing.outputs.has_identity }}" != "true" ]]; then
             unset OPEN_ISLAND_SIGN_IDENTITY || true
             export OPEN_ISLAND_SIGN_IDENTITY=""
-            echo "Packaging without Developer ID (ad-hoc / local-parity path)."
+            echo "Packaging without a stable signing identity."
           fi
           zsh scripts/package-app.sh
 
@@ -192,7 +214,7 @@ jobs:
           ditto -c -k --keepParent "$bundle" "$zip_path"
 
           # Re-sign and notarize DMG
-          codesign --force --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" --timestamp "$dmg_path"
+          codesign --force --sign "${{ secrets.REIMAGINE_SIGNING_IDENTITY || secrets.APPLE_SIGNING_IDENTITY }}" --timestamp "$dmg_path"
           xcrun notarytool submit "$dmg_path" \
             --keychain-profile "open-island-notary" \
             --wait --timeout 10m
@@ -281,10 +303,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOTARIZED: ${{ steps.notarize.outputs.notarized }}
           HAS_IDENTITY: ${{ steps.signing.outputs.has_identity }}
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
         run: |
           existing="$(gh release view "$GITHUB_REF_NAME" --json body -q .body)"
           if [[ "$NOTARIZED" == "true" ]]; then
             install_note="> This build is signed and notarized by Apple. It will launch without Gatekeeper warnings."
+          elif [[ "$SIGNING_MODE" == "self-signed" ]]; then
+            install_note="> This build uses Reimagine's stable self-signed identity (not Apple notarized). On first launch, right-click → **Open**. Accessibility permission then remains attached to the same app identity across Reimagine updates."
           elif [[ "$HAS_IDENTITY" == "true" ]]; then
             install_note="> This build is signed with a Developer ID certificate. On first launch, right-click → **Open** to bypass Gatekeeper."
           else

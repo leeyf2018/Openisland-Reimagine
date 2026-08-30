@@ -4,6 +4,14 @@ import Foundation
 import Observation
 import OpenIslandCore
 
+enum WorkBuddyUsageRefreshPolicy {
+    static let pollingInterval: Duration = .seconds(600)
+
+    static func shouldForceRefresh(isApplicationActive: Bool) -> Bool {
+        isApplicationActive == false
+    }
+}
+
 @MainActor
 @Observable
 final class HookInstallationCoordinator {
@@ -107,7 +115,6 @@ final class HookInstallationCoordinator {
 
     @ObservationIgnored
     private var workBuddyUsageMonitorTask: Task<Void, Never>?
-    private var workBuddyUsageMonitorIteration = 0
 
     @ObservationIgnored
     private var openCodeUsageMonitorTask: Task<Void, Never>?
@@ -1239,16 +1246,18 @@ final class HookInstallationCoordinator {
             guard let self else { return }
 
             while !Task.isCancelled {
+                try? await Task.sleep(for: WorkBuddyUsageRefreshPolicy.pollingInterval)
+                guard !Task.isCancelled else { return }
+
                 // While WorkBuddy is in use, its account/activity UI exposes
                 // the newly granted balance and passive capture avoids flicker.
                 // When it is in the background, press its own refresh control
-                // once per minute so gifts and plan changes do not require an
-                // app restart or a manually opened account menu.
-                let shouldForceRefresh = self.workBuddyUsageMonitorIteration.isMultiple(of: 4)
-                    && WorkBuddyUsageBridge.isApplicationActive() == false
+                // every ten minutes so gifts and plan changes do not require
+                // an app restart or a manually opened account menu.
+                let shouldForceRefresh = WorkBuddyUsageRefreshPolicy.shouldForceRefresh(
+                    isApplicationActive: WorkBuddyUsageBridge.isApplicationActive()
+                )
                 self.refreshWorkBuddyUsageState(forceRefresh: shouldForceRefresh)
-                self.workBuddyUsageMonitorIteration &+= 1
-                try? await Task.sleep(for: .seconds(15))
             }
         }
     }

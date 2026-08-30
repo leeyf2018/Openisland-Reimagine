@@ -5,9 +5,10 @@ Open Island Reimagine uses two independent trust layers.
 | Layer | Purpose | Required now |
 |---|---|---|
 | Sparkle EdDSA | Proves an automatic-update ZIP belongs to Reimagine | **Yes; release fails when missing** |
-| Apple Developer ID + notarization | Lets macOS trust the app without a first-open warning | Optional until Apple credentials are configured |
+| Stable Reimagine self-signed identity | Keeps the same macOS TCC/Accessibility identity between builds | **Yes for the Reimagine release line** |
+| Apple Developer ID + notarization | Lets macOS trust the app without a first-open warning | Optional paid upgrade |
 
-5 岁版：Sparkle 钥匙证明“新玩具是我们自己装进盒子的”；Apple 印章证明“苹果也检查过这个盒子”。现在第一把钥匙已经必须使用，苹果印章可以以后再补。
+5 岁版：Sparkle 钥匙证明“新玩具是我们自己装进盒子的”；稳定签名像一张一直不换的学生证，所以 Mac 不会每次都把它当成陌生小朋友；Apple 印章则表示“苹果也检查过这个盒子”，以后需要时再付费办理。
 
 ## Secret rules
 
@@ -27,6 +28,23 @@ Open Island Reimagine uses two independent trust layers.
 If this secret is absent or signing produces an empty result, the Release
 workflow stops before publishing update metadata.
 
+## Required stable-signing secrets
+
+| Secret / variable | Description |
+|---|---|
+| `REIMAGINE_CERTIFICATE_P12` | Base64 of the protected self-signed identity; never commit it |
+| `REIMAGINE_CERTIFICATE_PASSWORD` | Password protecting that P12 |
+| `REIMAGINE_SIGNING_IDENTITY` | `Open Island Reimagine Stable` |
+| Repository variable `REIMAGINE_SIGNING_MODE` | `self-signed` |
+
+The local and CI package must use the exact same certificate. Run
+`scripts/setup-release-signing.sh` only for the initial creation. Keep one
+encrypted offline backup of the P12; losing it would require another one-time
+Accessibility permission migration.
+
+The local protected backup lives outside the repository. Its password belongs
+in macOS Keychain, never in shell history, documentation, Git, or CI logs.
+
 ## Optional Apple secrets
 
 | Secret | Description |
@@ -38,9 +56,10 @@ workflow stops before publishing update metadata.
 | `APPLE_TEAM_ID` | Apple Developer Team ID |
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific notarization password |
 
-When these are absent, CI uses an ad-hoc app signature. Users may need to
-right-click the app and choose **Open** on first launch. Sparkle EdDSA signing
-still remains mandatory.
+The stable self-signed identity is not Apple Developer ID and cannot be
+notarized. Users may still need to right-click the app and choose **Open** on
+first launch. Sparkle EdDSA signing remains mandatory and independently proves
+the update ZIP belongs to Reimagine.
 
 ## Release flow
 
