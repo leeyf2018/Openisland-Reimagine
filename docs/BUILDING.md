@@ -15,7 +15,7 @@ Optional for the **O** (Copilot credits) chip after install:
 If you only want to **run** the app:
 
 1. Open [Releases](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest)
-2. Download `OpenIsland-Reimagine-*.app.zip`
+2. Download `Open.Island.zip` (or the DMG when present)
 3. Unzip, move `Open Island.app` to `/Applications`
 4. First launch: right-click → **Open** (ad-hoc signed; not Apple notarized)
 
@@ -45,9 +45,6 @@ swift run OpenIslandApp
 From the repo root:
 
 ```bash
-export OPEN_ISLAND_VERSION="1.1.6-reimagine"
-export OPEN_ISLAND_BUILD_NUMBER="$(date +%Y%m%d%H)"
-export OPEN_ISLAND_BUNDLE_ID="app.openisland.reimagine"   # optional; default is app.openisland.dev
 export OPEN_ISLAND_PACKAGE_ROOT="$PWD/output/package"
 
 ./scripts/package-app.sh
@@ -75,7 +72,7 @@ open -a "Open Island"
 
 - `.build/` and `output/` (local build artifacts — gitignored)
 - API keys, `gh` tokens, or personal agent configs
-- Upstream appcast / auto-update pointing at someone else’s releases (treat Sparkle as optional)
+- Upstream update metadata. Reimagine version, build, bundle ID, feed and public key live in `config/release.env`.
 
 ## License
 

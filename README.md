@@ -5,7 +5,7 @@
 <h1 align="center">Open Island — Reimagine</h1>
 
 <p align="center">
-  <strong>A GPL-3.0 fork of Open Island with notch usage chips for Codex · Grok · OpenCode (Copilot credits).</strong>
+  <strong>A GPL-3.0 fork of Open Island with notch usage chips for Codex · Grok · WorkBuddy · OpenCode (Copilot credits).</strong>
   <br>
   Open-source, local-first, native macOS companion for AI coding agents.
   <br><br>
@@ -32,9 +32,10 @@ This is **not** a ground-up rewrite. It is a **derivative** of Open Island with 
 
 ### Fork highlights
 
-- Notch header chips: **C** (Codex %), **G** (Grok %), **O** (GitHub Copilot **credits used**)
+- Notch header chips: **C** (Codex %), **G** (Grok %), **W** (WorkBuddy points remaining), **O** (GitHub Copilot **credits used**)
 - Compact vertical chips + reset-day hints `(N)`
 - Grok usage: local billing log + ~15s poll
+- WorkBuddy: current whole-point balance via its accessibility UI, with periodic and manual refresh
 - OpenCode / Copilot: `gh api /copilot_internal/user` (Business seats use `credits_used`)
 
 Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/BUILDING.md](docs/BUILDING.md) · Docs map: [docs/index.md](docs/index.md) · CI harness: [`scripts/harness.sh`](scripts/harness.sh)
@@ -43,7 +44,7 @@ Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/
 
 | What you want | How |
 |---------------|-----|
-| **Prebuilt app (recommended for most people)** | Open [**Releases**](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest) → download `OpenIsland-Reimagine-*.app.zip` → unzip → drag `Open Island.app` to `/Applications` |
+| **Prebuilt app (recommended for most people)** | Open [**Releases**](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest) → download `Open.Island.zip` (or the DMG when present) → unzip → drag `Open Island.app` to `/Applications` |
 | **Source ZIP only** | **Code → Download ZIP**, or [main.zip](https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip) → then build yourself ([docs/BUILDING.md](docs/BUILDING.md)) |
 
 **First launch (prebuilt):** the Release app is **ad-hoc signed** (not Apple Developer ID / notarized). macOS may block it once:
@@ -72,7 +73,6 @@ swift build
 swift run OpenIslandApp
 
 # Or package a release .app
-export OPEN_ISLAND_VERSION="1.1.6-reimagine"
 export OPEN_ISLAND_PACKAGE_ROOT="$PWD/output/package"
 ./scripts/package-app.sh
 ```

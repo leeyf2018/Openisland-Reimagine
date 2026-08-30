@@ -23,6 +23,7 @@ LENGTH="$4"
 PUB_DATE="${5:-$(date -u '+%a, %d %b %Y %H:%M:%S +0000')}"
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+source "$repo_root/config/release.env"
 appcast="$repo_root/appcast.xml"
 
 if [[ ! -f "$appcast" ]]; then
@@ -30,7 +31,12 @@ if [[ ! -f "$appcast" ]]; then
     exit 1
 fi
 
-download_url="https://github.com/Octane0411/open-vibe-island/releases/download/v${VERSION}/Open.Island.zip"
+if [[ "$VERSION" != "$REIMAGINE_VERSION" || "$BUILD_NUMBER" != "$REIMAGINE_BUILD_NUMBER" ]]; then
+    echo "Error: appcast version/build must match config/release.env" >&2
+    exit 1
+fi
+
+download_url="${REIMAGINE_RELEASES_URL}/download/v${VERSION}/Open.Island.zip"
 
 # Use Python for reliable XML-adjacent text insertion
 python3 - "$appcast" "$VERSION" "$BUILD_NUMBER" "$ED_SIGNATURE" "$LENGTH" "$PUB_DATE" "$download_url" <<'PYEOF'
@@ -66,7 +72,11 @@ if marker not in content:
     print("Error: marker comment not found in appcast.xml", file=sys.stderr)
     sys.exit(1)
 
-content = content.replace(marker, marker + "\n" + new_item)
+if f"<sparkle:version>{build_number}</sparkle:version>" in content:
+    print(f"Error: build {build_number} already exists in appcast.xml", file=sys.stderr)
+    sys.exit(1)
+
+content = content.replace(marker, marker + "\n" + new_item, 1)
 
 with open(appcast_path, "w") as f:
     f.write(content)

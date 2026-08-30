@@ -26,6 +26,7 @@ run_step() {
         lint)
             echo "==> lint"
             zsh "$repo_root/scripts/lint-strings.sh"
+            zsh "$repo_root/scripts/check-release-config.sh"
             ;;
         build)
             echo "==> build"
