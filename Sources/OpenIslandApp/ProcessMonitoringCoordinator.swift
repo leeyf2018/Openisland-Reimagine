@@ -72,6 +72,14 @@ final class ProcessMonitoringCoordinator {
     @ObservationIgnored
     private var wasCodexAppRunning = false
 
+    /// Watches Codex.app / Ghostty / OpenCode.app quit so island rows prune
+    /// without waiting for the 60s/300s full reconcile cadence.
+    @ObservationIgnored
+    private var watchedAppTerminationObserver: NSObjectProtocol?
+
+    @ObservationIgnored
+    private var appExitReconcileTask: Task<Void, Never>?
+
     private static let startupPollInterval: TimeInterval = 2
     private static let codexAppRunningProbeInterval: TimeInterval = 2
     private static let activePollInterval: TimeInterval = 60
@@ -83,6 +91,27 @@ final class ProcessMonitoringCoordinator {
     private static let cursorStalenessTimeout: TimeInterval = 600  // 10 minutes
     private static let codexAppStalenessTimeout: TimeInterval = 600  // 10 minutes
     private static let claudeDesktopStalenessTimeout: TimeInterval = 600  // 10 minutes
+
+    /// Second full reconcile after a watched-app quit so `processNotSeenCount`
+    /// (needs two consecutive misses) can mark CLI / hook-managed rows dead.
+    /// Codex.app rows usually clear on the first pass via app-level liveness.
+    nonisolated static let appExitConfirmReconcileDelay: TimeInterval = 1.5
+
+    /// Apps whose termination should force an immediate island full reconcile.
+    /// Keep this list narrow — exit-driven work is intentional, not a global
+    /// process-watch broadcast.
+    nonisolated static let watchedAppExitBundleIdentifiers: Set<String> = [
+        "com.openai.codex",          // Codex Desktop
+        "com.mitchellh.ghostty",     // Ghostty (CLI agents often live here)
+        "ai.opencode.desktop",       // OpenCode Desktop
+    ]
+
+    nonisolated static func isWatchedAppExitBundleIdentifier(_ bundleIdentifier: String?) -> Bool {
+        guard let bundleIdentifier, !bundleIdentifier.isEmpty else {
+            return false
+        }
+        return watchedAppExitBundleIdentifiers.contains(bundleIdentifier)
+    }
 
     static func monitoringPollInterval(
         isResolvingInitialLiveSessions: Bool,
@@ -135,6 +164,8 @@ final class ProcessMonitoringCoordinator {
         guard sessionAttachmentMonitorTask == nil else {
             return
         }
+
+        startWatchedAppExitObservationIfNeeded()
 
         sessionAttachmentMonitorTask = Task { @MainActor [weak self] in
             guard let self else {
@@ -230,6 +261,62 @@ final class ProcessMonitoringCoordinator {
                 )
                 try? await Task.sleep(for: .milliseconds(Int(wakeInterval * 1_000)))
             }
+        }
+    }
+
+    // MARK: - Watched app exit (Codex / Ghostty / OpenCode)
+
+    /// Observe macOS app termination for the narrow watched set and force a
+    /// full reconcile so island rows do not linger until the next 60s/300s poll.
+    func startWatchedAppExitObservationIfNeeded() {
+        guard watchedAppTerminationObserver == nil else {
+            return
+        }
+
+        watchedAppTerminationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            let bundleID = app?.bundleIdentifier
+            guard Self.isWatchedAppExitBundleIdentifier(bundleID) else {
+                return
+            }
+            Task { @MainActor [weak self] in
+                self?.handleWatchedAppDidTerminate(bundleIdentifier: bundleID)
+            }
+        }
+    }
+
+    func stopWatchedAppExitObservation() {
+        if let watchedAppTerminationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(watchedAppTerminationObserver)
+            self.watchedAppTerminationObserver = nil
+        }
+        appExitReconcileTask?.cancel()
+        appExitReconcileTask = nil
+    }
+
+    /// Immediate full reconcile + a short confirmation pass.
+    /// - First pass: Codex.app sessions drop via app-level liveness; CLI rows
+    ///   bump `processNotSeenCount`.
+    /// - Second pass (~1.5s): second miss clears CLI / hook-managed rows.
+    func handleWatchedAppDidTerminate(bundleIdentifier: String?) {
+        guard Self.isWatchedAppExitBundleIdentifier(bundleIdentifier) else {
+            return
+        }
+
+        // Coalesce rapid multi-app quits (e.g. user force-quits several at once)
+        // into one confirm sequence.
+        appExitReconcileTask?.cancel()
+        reconcileSessionAttachments()
+
+        appExitReconcileTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(Int(Self.appExitConfirmReconcileDelay * 1_000)))
+            guard !Task.isCancelled else { return }
+            self.reconcileSessionAttachments()
         }
     }
 
