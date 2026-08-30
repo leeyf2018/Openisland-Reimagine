@@ -1,71 +1,54 @@
 # Release Signing & Notarization
 
-Open Island releases are code-signed and notarized via GitHub Actions. This document explains how to set up the required secrets.
+Open Island Reimagine uses two independent trust layers.
 
-## Hard rule (Reimagine / public fork)
+| Layer | Purpose | Required now |
+|---|---|---|
+| Sparkle EdDSA | Proves an automatic-update ZIP belongs to Reimagine | **Yes; release fails when missing** |
+| Apple Developer ID + notarization | Lets macOS trust the app without a first-open warning | Optional until Apple credentials are configured |
 
-| Do | Don't |
-|----|--------|
-| Put Apple cert material **only** in GitHub **Actions Secrets** (and local Keychain for personal builds) | `git add` any `.p12`, `.pem`, `.p8`, `.cer`, base64 dumps, or notary passwords |
-| Delete local export files after pasting into Secrets | Commit `Certificates.p12`, `*.mobileprovision`, or env files with secrets |
-| Prefer ad-hoc / manual Latest zip when Secrets are empty (CI already supports this path) | Assume empty Secrets mean “release is broken forever” |
+5 岁版：Sparkle 钥匙证明“新玩具是我们自己装进盒子的”；Apple 印章证明“苹果也检查过这个盒子”。现在第一把钥匙已经必须使用，苹果印章可以以后再补。
 
-(5 岁版：钥匙只放保险箱；**永远不要把钥匙钉在公开说明书上**。)
+## Secret rules
 
-## Required GitHub Secrets
+- Private keys and certificates belong only in macOS Keychain or GitHub Actions
+  Secrets.
+- Never commit `.p12`, `.pem`, `.p8`, private-key exports, passwords, or secret
+  environment files.
+- The public EdDSA key is intentionally committed in `config/release.env` and
+  embedded into the app.
 
-Go to **Settings → Secrets and variables → Actions** in the repository and add:
+## Required GitHub secret for automatic updates
 
 | Secret | Description |
-|--------|-------------|
-| `APPLE_CERTIFICATE_P12` | Base64-encoded Developer ID Application certificate (.p12) |
-| `APPLE_CERTIFICATE_PASSWORD` | Password for the .p12 file |
-| `APPLE_SIGNING_IDENTITY` | Signing identity string, e.g. `Developer ID Application: Your Name (TEAMID)` |
-| `APPLE_ID` | Apple ID email used for notarization |
-| `APPLE_TEAM_ID` | 10-character Apple Developer Team ID |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization (generate at appleid.apple.com) |
+|---|---|
+| `SPARKLE_EDDSA_KEY` | Reimagine Sparkle private EdDSA key. The Release workflow signs `Open Island.zip` with it. |
 
-## How to export the certificate
+If this secret is absent or signing produces an empty result, the Release
+workflow stops before publishing update metadata.
 
-1. Open **Keychain Access** → **My Certificates**
-2. Find your **Developer ID Application** certificate
-3. Right-click → **Export** → save as `.p12` with a password
-4. Base64-encode it:
-   ```bash
-   base64 -i Certificates.p12 | pbcopy
-   ```
-5. Paste the result into the `APPLE_CERTIFICATE_P12` secret
-6. **Delete or move outside the repo** the temporary `.p12` and any shell history that printed it — never stage those files
+## Optional Apple secrets
 
-## How to generate an app-specific password
+| Secret | Description |
+|---|---|
+| `APPLE_CERTIFICATE_P12` | Base64 Developer ID Application identity |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for the P12 |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: ...` identity name |
+| `APPLE_ID` | Apple ID used for notarization |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific notarization password |
 
-1. Go to [appleid.apple.com](https://appleid.apple.com) → **Sign-In and Security** → **App-Specific Passwords**
-2. Generate a new password, label it `open-island-notary`
-3. Save it as the `APPLE_APP_SPECIFIC_PASSWORD` secret
-
-## Local signed builds
-
-You can also build signed locally:
-
-```bash
-export OPEN_ISLAND_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-export OPEN_ISLAND_NOTARY_PROFILE="open-island-notary"
-export OPEN_ISLAND_VERSION="0.2.0"
-
-# First, store notarization credentials (one-time):
-xcrun notarytool store-credentials "open-island-notary" \
-  --apple-id "you@example.com" \
-  --team-id "TEAMID" \
-  --password "xxxx-xxxx-xxxx-xxxx"
-
-# Then build:
-zsh scripts/package-app.sh
-```
+When these are absent, CI uses an ad-hoc app signature. Users may need to
+right-click the app and choose **Open** on first launch. Sparkle EdDSA signing
+still remains mandatory.
 
 ## Release flow
 
-1. Merge all PRs to `main`
-2. Tag the release: `git tag v0.2.0 && git push origin v0.2.0`
-3. The `Release` workflow runs automatically — builds, signs, notarizes, and creates a draft GitHub Release
-4. Review the draft release and publish it
-5. Update `appcast.xml` for Sparkle auto-update
+1. Merge the reviewed version/config change to `main`.
+2. Push the exact canonical tag from `config/release.env`.
+3. The workflow packages and validates the app.
+4. It signs the update ZIP with `SPARKLE_EDDSA_KEY`.
+5. It publishes the GitHub Release before updating the appcast.
+6. The appcast update is merged through its own CI-checked PR.
+
+See [releasing.md](releasing.md) for the bridge-install boundary and acceptance checklist.

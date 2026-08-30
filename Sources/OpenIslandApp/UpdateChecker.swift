@@ -10,7 +10,7 @@ import Sparkle
 @MainActor
 @Observable
 final class UpdateChecker: NSObject {
-    static let releasesURL = URL(string: "https://github.com/Octane0411/open-vibe-island/releases")!
+    static let releasesURL = URL(string: "https://github.com/leeyf2018/Openisland-Reimagine/releases")!
 
     private(set) var canCheckForUpdates = false
     private(set) var hasUpdate = false
@@ -36,8 +36,8 @@ final class UpdateChecker: NSObject {
     func startIfNeeded() {
         #if DEBUG
         // Dev builds run from a local branch that often carries fixes not yet in
-        // the upstream appcast. Letting Sparkle prompt the user to "update" to
-        // 1.0.21 would overwrite the bundle and silently discard those fixes.
+        // the Reimagine appcast. Never replace a development bundle from a
+        // published release while local changes are under test.
         // Skip the auto-check entirely in debug — release bundles still update.
         print("[UpdateChecker] skipped in DEBUG build")
         return

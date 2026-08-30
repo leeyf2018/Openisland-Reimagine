@@ -8,10 +8,14 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-app_name="${OPEN_ISLAND_APP_NAME:-Open Island}"
-bundle_identifier="${OPEN_ISLAND_BUNDLE_ID:-app.openisland.dev}"
-version="${OPEN_ISLAND_VERSION:-0.1.0}"
-build_number="${OPEN_ISLAND_BUILD_NUMBER:-$(git -C "$repo_root" rev-list --count HEAD 2>/dev/null || echo 1)}"
+source "$repo_root/config/release.env"
+
+app_name="${OPEN_ISLAND_APP_NAME:-$REIMAGINE_APP_NAME}"
+bundle_identifier="${OPEN_ISLAND_BUNDLE_ID:-$REIMAGINE_BUNDLE_ID}"
+version="${OPEN_ISLAND_VERSION:-$REIMAGINE_VERSION}"
+build_number="${OPEN_ISLAND_BUILD_NUMBER:-$REIMAGINE_BUILD_NUMBER}"
+feed_url="${OPEN_ISLAND_FEED_URL:-$REIMAGINE_FEED_URL}"
+eddsa_public_key="${OPEN_ISLAND_EDDSA_PUBLIC_KEY:-$REIMAGINE_EDDSA_PUBLIC_KEY}"
 package_root="${OPEN_ISLAND_PACKAGE_ROOT:-$repo_root/output/package}"
 bundle_dir="${OPEN_ISLAND_BUNDLE_DIR:-$package_root/$app_name.app}"
 zip_path="${OPEN_ISLAND_ZIP_PATH:-$package_root/$app_name.zip}"
@@ -111,9 +115,9 @@ cat > "$bundle_dir/Contents/Info.plist" <<EOF
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/Octane0411/open-vibe-island/main/appcast.xml</string>
+    <string>$feed_url</string>
     <key>SUPublicEDKey</key>
-    <string>${OPEN_ISLAND_EDDSA_PUBLIC_KEY:-3IF8txq9RRNanzE2FNhyGRcwhslTucCcJHpTkpxcgBQ=}</string>
+    <string>$eddsa_public_key</string>
 </dict>
 </plist>
 EOF

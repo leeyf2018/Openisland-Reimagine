@@ -11,6 +11,7 @@ for arg in "$@"; do
 done
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+source "$repo_root/config/release.env"
 brand_script="$repo_root/scripts/generate_brand_icons.py"
 brand_icon="$repo_root/Assets/Brand/OpenIsland.icns"
 bundle_dir="$HOME/Applications/Open Island Dev.app"
@@ -74,7 +75,7 @@ cat > "$plist_path" <<EOF
     <key>CFBundleExecutable</key>
     <string>OpenIslandApp</string>
     <key>CFBundleIdentifier</key>
-    <string>app.openisland.dev</string>
+    <string>app.openisland.reimagine.dev</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleIconFile</key>
@@ -84,9 +85,9 @@ cat > "$plist_path" <<EOF
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1</string>
+    <string>$REIMAGINE_VERSION-dev</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$REIMAGINE_BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSAppleEventsUsageDescription</key>
@@ -96,9 +97,9 @@ cat > "$plist_path" <<EOF
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/Octane0411/open-vibe-island/main/appcast.xml</string>
+    <string>$REIMAGINE_FEED_URL</string>
     <key>SUPublicEDKey</key>
-    <string>3IF8txq9RRNanzE2FNhyGRcwhslTucCcJHpTkpxcgBQ=</string>
+    <string>$REIMAGINE_EDDSA_PUBLIC_KEY</string>
 </dict>
 </plist>
 EOF
