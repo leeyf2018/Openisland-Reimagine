@@ -3,6 +3,11 @@ import Testing
 @testable import OpenIslandCore
 
 struct CodexUsageTests {
+    /// Parsing tests exercise active-window values. Keep their reset boundary
+    /// independent of the wall clock so the suite does not start failing when
+    /// a historical fixture date passes on CI.
+    private static let activeWindowResetTimestamp = Date.distantFuture.timeIntervalSince1970
+
     @Test
     func codexUsageSnapshotDetectsFullyUsedWindow() {
         let fullWindow = CodexUsageWindow(
@@ -67,12 +72,12 @@ struct CodexUsageTests {
                             "primary": [
                                 "used_percent": 12.0,
                                 "window_minutes": 300,
-                                "resets_at": 1_775_158_295,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                             "secondary": [
                                 "used_percent": 24.0,
                                 "window_minutes": 10_080,
-                                "resets_at": 1_775_635_184,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                         ],
                     ]
@@ -93,12 +98,12 @@ struct CodexUsageTests {
                             "primary": [
                                 "used_percent": 13.0,
                                 "window_minutes": 300,
-                                "resets_at": 1_775_158_295,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                             "secondary": [
                                 "used_percent": 25.0,
                                 "window_minutes": 10_080,
-                                "resets_at": 1_775_635_184,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                         ],
                     ]
@@ -119,7 +124,10 @@ struct CodexUsageTests {
         #expect(snapshot?.windows.map(\.label) == ["5h", "7d"])
         #expect(snapshot?.windows.map(\.roundedUsedPercentage) == [13, 25])
         #expect(snapshot?.windows.first?.leftPercentage == 87)
-        #expect(snapshot?.windows.first?.resetsAt == Date(timeIntervalSince1970: 1_775_158_295))
+        #expect(
+            snapshot?.windows.first?.resetsAt
+                == Date(timeIntervalSince1970: Self.activeWindowResetTimestamp)
+        )
         #expect(snapshot?.capturedAt == isoDate("2026-04-03T01:50:35.000Z"))
     }
 
@@ -150,7 +158,7 @@ struct CodexUsageTests {
                             "primary": [
                                 "used_percent": 13.0,
                                 "window_minutes": 300,
-                                "resets_at": 1_775_158_295,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                         ],
                     ]
@@ -204,12 +212,12 @@ struct CodexUsageTests {
                             "primary": [
                                 "used_percent": 8.0,
                                 "window_minutes": 90,
-                                "resets_at": 1_775_200_000,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                             "secondary": [
                                 "used_percent": 11.0,
                                 "window_minutes": 1_500,
-                                "resets_at": 1_775_260_000,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                         ],
                     ]
@@ -254,7 +262,7 @@ struct CodexUsageTests {
                             "primary": [
                                 "used_percent": 100.0,
                                 "window_minutes": 10_080,
-                                "resets_at": 1_786_163_717,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                         ],
                     ]
@@ -275,7 +283,7 @@ struct CodexUsageTests {
                             "primary": [
                                 "used_percent": 45.0,
                                 "window_minutes": 10_080,
-                                "resets_at": 1_786_427_664,
+                                "resets_at": Self.activeWindowResetTimestamp,
                             ],
                         ],
                     ]
@@ -343,6 +351,10 @@ private func setModificationDate(_ date: Date, for url: URL) throws {
 private func isoDate(_ value: String) -> Date? {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = formatter.date(from: value) {
+        return date
+    }
+    formatter.formatOptions = [.withInternetDateTime]
     return formatter.date(from: value)
 }
 

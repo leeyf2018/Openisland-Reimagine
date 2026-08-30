@@ -133,6 +133,24 @@ struct GrokUsageTests {
     }
 
     @Test
+    func grokUsageLoaderPreservesExplicitZeroPercent() throws {
+        let logURL = temporaryLogURL()
+        defer { try? FileManager.default.removeItem(at: logURL.deletingLastPathComponent()) }
+
+        try writeLog(
+            [billingLine(timestamp: "2026-08-16T03:22:06.652Z", usedPercentage: 0)],
+            to: logURL
+        )
+
+        let snapshot = try GrokUsageLoader.load(
+            from: logURL,
+            now: isoDate("2026-08-16T03:23:00.000Z")!
+        )
+        #expect(snapshot?.roundedUsedPercentage == 0)
+        #expect(snapshot?.capturedAt == isoDate("2026-08-16T03:22:06.652Z"))
+    }
+
+    @Test
     func grokUsageLoaderPrefersNewerBillingAcrossRotatedLogs() throws {
         let directory = temporaryLogURL().deletingLastPathComponent()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -171,13 +189,17 @@ private func writeLog(_ lines: [String], to url: URL) throws {
     try lines.joined(separator: "\n").appending("\n").write(to: url, atomically: true, encoding: .utf8)
 }
 
-private enum BillingPercent: ExpressibleByFloatLiteral {
+private enum BillingPercent: ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral {
     case value(Double)
     case omitted
     case null
 
     init(floatLiteral value: Double) {
         self = .value(value)
+    }
+
+    init(integerLiteral value: Int) {
+        self = .value(Double(value))
     }
 }
 
