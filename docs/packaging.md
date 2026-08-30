@@ -9,9 +9,21 @@ This repository can now produce a local macOS app bundle from the Swift package 
 - The bundle embeds helper binaries inside `Contents/Helpers/` so the app can still locate `OpenIslandHooks` after it leaves the repository checkout.
 - The script also creates `output/package/Open Island.zip` for local sharing or later notarization.
 
-## Unsigned First
+## Stable Local Signing
 
-If the machine does not yet have a `Developer ID Application` certificate, the script still works. It produces an unsigned `.app` bundle and `.zip` archive for local inspection.
+Reimagine can use a zero-fee, long-lived self-signed identity for local and CI
+packages. Create it once, then pass the identity while packaging:
+
+```bash
+zsh scripts/setup-release-signing.sh
+OPEN_ISLAND_SIGN_IDENTITY="Open Island Reimagine Stable" \
+OPEN_ISLAND_CODE_SIGN_TIMESTAMP=false \
+zsh scripts/package-app.sh
+```
+
+This keeps the designated requirement stable across builds, which prevents
+macOS Accessibility permission from being tied to a changing ad-hoc CDHash.
+It does not replace Apple Developer ID or notarization.
 
 Check whether signing identities are available with:
 
@@ -19,7 +31,8 @@ Check whether signing identities are available with:
 security find-identity -v -p codesigning
 ```
 
-If that command reports `0 valid identities found`, packaging is limited to unsigned output until the certificate is created in the Apple Developer account and imported into the login keychain.
+If that command reports `0 valid identities found`, packaging falls back to an
+ad-hoc signature until a stable local or Apple Developer ID identity is added.
 
 ### "Open Island is damaged and can't be opened"
 
@@ -68,4 +81,5 @@ The script accepts these environment variables:
 - `OPEN_ISLAND_BUNDLE_DIR`
 - `OPEN_ISLAND_ZIP_PATH`
 - `OPEN_ISLAND_SIGN_IDENTITY`
+- `OPEN_ISLAND_CODE_SIGN_TIMESTAMP` (`false` for the self-signed identity)
 - `OPEN_ISLAND_NOTARY_PROFILE`

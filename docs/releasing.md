@@ -27,17 +27,19 @@ update URL fails closed.
 
 The installed `0.1.0` custom build contains the old publisher's Sparkle public
 key. A signed updater cannot silently replace that trusted key. Therefore the
-first move to `1.1.6-reimagine.30` is a **one-time manual bridge install**:
+first move to `1.1.6-reimagine.30` was a **one-time manual bridge install**.
+The move from ad-hoc `.30` to stable-signed `.31` is the final one-time identity
+migration:
 
 1. Quit Open Island.
 2. Keep a rollback copy of the existing app.
-3. Replace `/Applications/Open Island.app` with the verified Reimagine package.
+3. Replace `/Applications/Open Island.app` with the verified `.31` Reimagine package.
 4. Launch it once and confirm the C/G/W/O chips and session workflow.
 
-The production bundle ID stays the same, so the existing settings and macOS
-privacy identity can continue. From the bridged version onward, Sparkle reads
-only the Reimagine appcast and accepts only packages signed by the Reimagine
-key.
+The production bundle ID stays the same, so existing settings continue. Grant
+Accessibility once to the stable-signed `.31` app. From then onward, both local
+and GitHub builds use the same certificate, so that permission identity remains
+stable across Reimagine updates.
 
 ## Automated release flow
 
@@ -93,6 +95,7 @@ private key into a file, workflow log, issue, or commit.
 - After the one-time bridge install, C/G/W/O and session business functions are
   still present.
 
-Apple Developer ID notarization is a separate trust layer. When Apple secrets
-are absent, the Release may be ad-hoc signed and require right-click → Open;
-this does not weaken the Sparkle EdDSA package signature.
+Apple Developer ID notarization is a separate, optional paid trust layer. The
+stable self-signed release may still require right-click → Open, but it avoids
+the repeated Accessibility permission churn caused by ad-hoc signatures. This
+does not weaken the independent Sparkle EdDSA package signature.

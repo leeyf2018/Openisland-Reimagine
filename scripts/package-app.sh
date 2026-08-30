@@ -22,6 +22,15 @@ zip_path="${OPEN_ISLAND_ZIP_PATH:-$package_root/$app_name.zip}"
 dmg_path="${OPEN_ISLAND_DMG_PATH:-$package_root/$app_name.dmg}"
 signing_identity="${OPEN_ISLAND_SIGN_IDENTITY:-}"
 notary_profile="${OPEN_ISLAND_NOTARY_PROFILE:-}"
+code_sign_timestamp="${OPEN_ISLAND_CODE_SIGN_TIMESTAMP:-true}"
+
+code_sign_timestamp_args=()
+if [[ "$code_sign_timestamp" == "true" ]]; then
+    code_sign_timestamp_args=(--timestamp)
+elif [[ "$code_sign_timestamp" != "false" ]]; then
+    echo "OPEN_ISLAND_CODE_SIGN_TIMESTAMP must be true or false." >&2
+    exit 1
+fi
 
 brand_script="$repo_root/scripts/generate_brand_icons.py"
 dmg_bg_script="$repo_root/scripts/generate_dmg_background.py"
@@ -181,24 +190,24 @@ if [[ -n "$signing_identity" ]]; then
 
     if [[ -d "$sparkle_fw" ]]; then
         for xpc in "$sparkle_fw"/Versions/B/XPCServices/*.xpc; do
-            [[ -d "$xpc" ]] && codesign --force --options runtime --timestamp --sign "$signing_identity" "$xpc"
+            [[ -d "$xpc" ]] && codesign --force --options runtime "${code_sign_timestamp_args[@]}" --sign "$signing_identity" "$xpc"
         done
         [[ -f "$sparkle_fw/Versions/B/Autoupdate" ]] && \
-            codesign --force --options runtime --timestamp --sign "$signing_identity" "$sparkle_fw/Versions/B/Autoupdate"
+            codesign --force --options runtime "${code_sign_timestamp_args[@]}" --sign "$signing_identity" "$sparkle_fw/Versions/B/Autoupdate"
         [[ -d "$sparkle_fw/Versions/B/Updater.app" ]] && \
-            codesign --force --options runtime --timestamp --sign "$signing_identity" "$sparkle_fw/Versions/B/Updater.app"
-        codesign --force --options runtime --timestamp --sign "$signing_identity" "$sparkle_fw"
+            codesign --force --options runtime "${code_sign_timestamp_args[@]}" --sign "$signing_identity" "$sparkle_fw/Versions/B/Updater.app"
+        codesign --force --options runtime "${code_sign_timestamp_args[@]}" --sign "$signing_identity" "$sparkle_fw"
     fi
 
-    codesign --force --options runtime --timestamp --sign "$signing_identity" \
+    codesign --force --options runtime "${code_sign_timestamp_args[@]}" --sign "$signing_identity" \
         "$bundle_dir/Contents/Helpers/OpenIslandHooks"
-    codesign --force --options runtime --timestamp --sign "$signing_identity" \
+    codesign --force --options runtime "${code_sign_timestamp_args[@]}" --sign "$signing_identity" \
         "$bundle_dir/Contents/Helpers/OpenIslandSetup"
 
     codesign \
         --force \
         --options runtime \
-        --timestamp \
+        "${code_sign_timestamp_args[@]}" \
         --entitlements "$entitlements_path" \
         --sign "$signing_identity" \
         "$bundle_dir"
@@ -256,7 +265,7 @@ if [[ -n "$signing_identity" ]]; then
     codesign \
         --force \
         --sign "$signing_identity" \
-        --timestamp \
+        "${code_sign_timestamp_args[@]}" \
         "$dmg_path"
 fi
 

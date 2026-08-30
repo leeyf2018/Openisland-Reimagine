@@ -47,7 +47,7 @@ Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/
 | **Prebuilt app (recommended for most people)** | Open [**Releases**](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest) → download `Open.Island.zip` (or the DMG when present) → unzip → drag `Open Island.app` to `/Applications` |
 | **Source ZIP only** | **Code → Download ZIP**, or [main.zip](https://github.com/leeyf2018/Openisland-Reimagine/archive/refs/heads/main.zip) → then build yourself ([docs/BUILDING.md](docs/BUILDING.md)) |
 
-**First launch (prebuilt):** the Release app is **ad-hoc signed** (not Apple Developer ID / notarized). macOS may block it once:
+**First launch (prebuilt):** the Release app uses a stable Reimagine self-signed identity (not Apple Developer ID / notarized). macOS may block it once:
 
 1. Right-click `Open Island.app` → **Open** → confirm, **or**
 2. **System Settings → Privacy & Security** → allow the blocked app

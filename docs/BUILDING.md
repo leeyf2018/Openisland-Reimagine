@@ -17,7 +17,7 @@ If you only want to **run** the app:
 1. Open [Releases](https://github.com/leeyf2018/Openisland-Reimagine/releases/latest)
 2. Download `Open.Island.zip` (or the DMG when present)
 3. Unzip, move `Open Island.app` to `/Applications`
-4. First launch: right-click → **Open** (ad-hoc signed; not Apple notarized)
+4. First launch: right-click → **Open** (stable Reimagine self-signed identity; not Apple notarized)
 
 Continue below only if you need to **build or modify** the source.
 
@@ -66,7 +66,9 @@ xattr -cr "/Applications/Open Island.app"
 open -a "Open Island"
 ```
 
-> **Note:** Unsigned local builds may need **System Settings → Privacy & Security** approval on first launch, or right-click → Open.
+> **Note:** Run `scripts/setup-release-signing.sh` once before packaging if you
+> need Accessibility permission to persist across local release rebuilds. The
+> self-signed app may still need right-click → Open on first launch.
 
 ## What is *not* in this repository
 

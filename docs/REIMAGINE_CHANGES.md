@@ -42,7 +42,7 @@ See [BUILDING.md](./BUILDING.md).
 Prebuilt macOS app zips are published under GitHub **Releases** (not inside the source tree):
 
 - Asset pattern: `OpenIsland-Reimagine-<version>.app.zip`
-- Signing: typically **ad-hoc** unless a Developer ID build is provided later
+- Signing: stable Reimagine self-signed identity; Apple Developer ID remains an optional paid upgrade
 - Source of truth for code remains the `main` branch (GPL-3.0)
 
 ### Single Latest package policy (hard)
