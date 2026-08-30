@@ -13,6 +13,7 @@ struct IslandDebugSnapshot {
     let selectedSessionID: String?
     var codexUsageSnapshot: CodexUsageSnapshot? = nil
     var grokUsageSnapshot: GrokUsageSnapshot? = nil
+    var workBuddyUsageSnapshot: WorkBuddyUsageSnapshot? = nil
     var openCodeUsageSnapshot: OpenCodeUsageSnapshot? = nil
 }
 
@@ -111,6 +112,11 @@ enum IslandDebugScenario: String, CaseIterable, Identifiable {
                     usedPercentage: 42,
                     periodType: "USAGE_PERIOD_TYPE_WEEKLY",
                     resetsAt: now.addingTimeInterval(4 * 86_400)
+                ),
+                workBuddyUsageSnapshot: WorkBuddyUsageSnapshot(
+                    source: "debug://workbuddy-usage",
+                    capturedAt: now,
+                    pointsRemaining: 6_200
                 ),
                 openCodeUsageSnapshot: OpenCodeUsageSnapshot(
                     source: "debug://opencode-copilot-usage",
