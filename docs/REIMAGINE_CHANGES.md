@@ -8,7 +8,7 @@ This document lists **user-facing deltas** in `Openisland-Reimagine` relative to
 |------|--------|----------------|-------|
 | **C** | Codex local usage (rollout / existing Open Island path) | Used **%** of window | Reset days as `(N)` under the number |
 | **G** | Grok CLI billing log `~/.grok/logs/unified.jsonl` | Used **%** | Poll ~15s + log watch |
-| **W** | WorkBuddy accessibility UI | **Points remaining** (whole number) | No reset-day row; automatic polling plus click-to-refresh |
+| **W** | WorkBuddy accessibility UI | **Points remaining** (whole number) | No reset-day row; startup/click refresh plus a 10-minute background poll |
 | **O** | GitHub Copilot via `gh api /copilot_internal/user` | **Credits used** (raw) | Business seats: do not trust `percent_remaining` alone when `unlimited=true`; color may still use plan-relative % |
 
 Layout notes:
