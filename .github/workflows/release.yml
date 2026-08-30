@@ -82,10 +82,13 @@ jobs:
             -f pkcs12 \
             -k "$KEYCHAIN_PATH"
 
-          if ! security find-identity -p codesigning -v "$KEYCHAIN_PATH" | grep -Fq "\"$SIGNING_IDENTITY\""; then
+          RESOLVED_IDENTITY="$(security find-certificate -c "$SIGNING_IDENTITY" -Z "$KEYCHAIN_PATH" \
+            | awk '/SHA-1 hash:/{print $3; exit}')"
+          if [[ -z "$RESOLVED_IDENTITY" ]]; then
             echo "::error::Imported certificate does not match SIGNING_IDENTITY: $SIGNING_IDENTITY"
             exit 1
           fi
+          echo "resolved_identity=$RESOLVED_IDENTITY" >> "$GITHUB_OUTPUT"
 
           security set-key-partition-list \
             -S apple-tool:,apple: \
@@ -124,7 +127,7 @@ jobs:
           OPEN_ISLAND_BUNDLE_ID: ${{ steps.version.outputs.bundle_id }}
           OPEN_ISLAND_VERSION: ${{ steps.version.outputs.version }}
           OPEN_ISLAND_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
-          OPEN_ISLAND_SIGN_IDENTITY: ${{ secrets.REIMAGINE_SIGNING_IDENTITY || secrets.APPLE_SIGNING_IDENTITY }}
+          OPEN_ISLAND_SIGN_IDENTITY: ${{ steps.signing.outputs.resolved_identity }}
           OPEN_ISLAND_CODE_SIGN_TIMESTAMP: ${{ steps.signing.outputs.mode == 'self-signed' && 'false' || 'true' }}
           OPEN_ISLAND_UNIVERSAL: "true"
         run: |
@@ -214,7 +217,7 @@ jobs:
           ditto -c -k --keepParent "$bundle" "$zip_path"
 
           # Re-sign and notarize DMG
-          codesign --force --sign "${{ secrets.REIMAGINE_SIGNING_IDENTITY || secrets.APPLE_SIGNING_IDENTITY }}" --timestamp "$dmg_path"
+          codesign --force --sign "${{ steps.signing.outputs.resolved_identity }}" --timestamp "$dmg_path"
           xcrun notarytool submit "$dmg_path" \
             --keychain-profile "open-island-notary" \
             --wait --timeout 10m
