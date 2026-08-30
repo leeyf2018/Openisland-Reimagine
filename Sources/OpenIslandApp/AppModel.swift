@@ -92,6 +92,7 @@ final class AppModel {
     var claudeUsageSnapshot: ClaudeUsageSnapshot? { hooks.claudeUsageSnapshot }
     var codexUsageSnapshot: CodexUsageSnapshot? { hooks.codexUsageSnapshot }
     var grokUsageSnapshot: GrokUsageSnapshot? { hooks.grokUsageSnapshot }
+    var workBuddyUsageSnapshot: WorkBuddyUsageSnapshot? { hooks.workBuddyUsageSnapshot }
     var openCodeUsageSnapshot: OpenCodeUsageSnapshot? { hooks.openCodeUsageSnapshot }
     var hooksBinaryURL: URL? { hooks.hooksBinaryURL }
     var codexHooksInstalled: Bool { hooks.codexHooksInstalled }
@@ -118,6 +119,13 @@ final class AppModel {
     var codexUsageStatusTitle: String { hooks.codexUsageStatusTitle }
     var codexUsageStatusSummary: String { hooks.codexUsageStatusSummary }
     var codexUsageSummaryText: String? { hooks.codexUsageSummaryText }
+
+    func refreshWorkBuddyUsage() {
+        hooks.refreshWorkBuddyUsageState(
+            forceRefresh: true,
+            promptForAccessibility: true
+        )
+    }
     var openCodePluginStatus: OpenCodePluginInstallationStatus? { hooks.openCodePluginStatus }
     var isOpenCodeSetupBusy: Bool { hooks.isOpenCodeSetupBusy }
     var openCodePluginStatusTitle: String { hooks.openCodePluginStatusTitle }
@@ -258,6 +266,8 @@ final class AppModel {
                 codexAppServer.startUsageMonitoringIfNeeded()
                 hooks.refreshGrokUsageState()
                 hooks.startGrokUsageMonitoringIfNeeded()
+                hooks.refreshWorkBuddyUsageState()
+                hooks.startWorkBuddyUsageMonitoringIfNeeded()
                 hooks.refreshOpenCodeUsageState()
                 hooks.startOpenCodeUsageMonitoringIfNeeded()
             }
@@ -1139,6 +1149,8 @@ final class AppModel {
                 hooks.startCodexUsageMonitoringIfNeeded()
                 hooks.refreshGrokUsageState()
                 hooks.startGrokUsageMonitoringIfNeeded()
+                hooks.refreshWorkBuddyUsageState()
+                hooks.startWorkBuddyUsageMonitoringIfNeeded()
                 hooks.refreshOpenCodeUsageState()
                 hooks.startOpenCodeUsageMonitoringIfNeeded()
             }
@@ -1295,6 +1307,7 @@ final class AppModel {
         selectedSessionID = snapshot.selectedSessionID ?? snapshot.sessions.first?.id
         hooks.codexUsageSnapshot = snapshot.codexUsageSnapshot
         hooks.grokUsageSnapshot = snapshot.grokUsageSnapshot
+        hooks.workBuddyUsageSnapshot = snapshot.workBuddyUsageSnapshot
         hooks.openCodeUsageSnapshot = snapshot.openCodeUsageSnapshot
         lastActionMessage = "Loaded debug scenario: \(snapshot.title)."
         harnessRuntimeMonitor?.recordMilestone("scenarioLoaded", message: snapshot.title)

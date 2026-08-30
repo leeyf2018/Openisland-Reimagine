@@ -948,7 +948,7 @@ struct IslandPanelView: View {
                 providers.append(
                     UsageProviderPresentation(
                         id: "codex",
-                        // Single-letter chip (user: C / G / O) — help text keeps full name.
+                        // Single-letter chip (user: C / G / W / O) — help text keeps full name.
                         title: "C",
                         windows: windows
                     )
@@ -970,6 +970,20 @@ struct IslandPanelView: View {
                             resetsAt: snapshot.resetsAt
                         ),
                     ]
+                )
+            )
+        }
+
+        // WorkBuddy is one whole-points balance. It intentionally has no
+        // usage window, percentage, or reset-days row.
+        if model.showCodexUsage,
+           let snapshot = model.workBuddyUsageSnapshot {
+            providers.append(
+                UsageProviderPresentation(
+                    id: "workbuddy",
+                    title: "W",
+                    primaryDisplay: .pointsRemaining(snapshot.pointsRemaining),
+                    windows: []
                 )
             )
         }
@@ -1010,13 +1024,20 @@ struct IslandPanelView: View {
             return ([providers[0]], [])
         case 2:
             // Keep C+G (or any pair of single-letter chips) on the left of the notch.
-            if ids.isSubset(of: ["codex", "grok", "opencode"]) {
+            if ids.isSubset(of: ["codex", "grok", "workbuddy", "opencode"]) {
                 return (providers, [])
             }
             return ([providers[0]], [providers[1]])
         case 3:
             // C + G + O are ultra-short; keep all left when possible.
             if ids == Set(["codex", "grok", "opencode"]) {
+                return (providers, [])
+            }
+            fallthrough
+        case 4:
+            // C + G + W + O remain one ordered group; W must sit directly
+            // left of the retained O/Copilot card.
+            if ids == Set(["codex", "grok", "workbuddy", "opencode"]) {
                 return (providers, [])
             }
             fallthrough
@@ -1121,14 +1142,40 @@ struct IslandPanelView: View {
     ) -> some View {
         let resetDays = provider.peakResetDaysRemaining
         let letter = usesShortTitle ? provider.shortTitle : provider.title
-        // OpenCode (O): always show raw Copilot credits used — never plan %.
-        let metricText: String = {
-            if provider.id == "opencode",
-               let credits = model.openCodeUsageSnapshot?.creditsUsed {
-                return "\(Int(credits.rounded()))"
+        let metricText = provider.primaryMetricText
+        return Group {
+            if provider.id == "workbuddy" {
+                Button {
+                    model.refreshWorkBuddyUsage()
+                } label: {
+                    compactUsageChipBody(
+                        provider,
+                        letter: letter,
+                        metricText: metricText,
+                        resetDays: resetDays
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("WorkBuddy \(metricText), refresh balance")
+            } else {
+                compactUsageChipBody(
+                    provider,
+                    letter: letter,
+                    metricText: metricText,
+                    resetDays: resetDays
+                )
+                .accessibilityLabel("\(letter) \(metricText)")
             }
-            return provider.primaryMetricText
-        }()
+        }
+        .help(usageHelpText(for: provider))
+    }
+
+    private func compactUsageChipBody(
+        _ provider: UsageProviderPresentation,
+        letter: String,
+        metricText: String,
+        resetDays: Int?
+    ) -> some View {
         // Vertical stack: letter / metric / (reset days). Font sizes fixed;
         // hug content so chip outline is tight (less empty black frame).
         return VStack(spacing: 1) {
@@ -1149,6 +1196,13 @@ struct IslandPanelView: View {
                     .foregroundStyle(.white.opacity(0.95))
                     .monospacedDigit()
                     .lineLimit(1)
+            } else if provider.id == "workbuddy" {
+                // Reserve the same third-row height as C/G/O. The row remains
+                // visually empty because WorkBuddy has no reset-days concept.
+                Text("(0)")
+                    .font(.system(size: Self.usageResetFontSize, weight: .semibold, design: .monospaced))
+                    .hidden()
+                    .accessibilityHidden(true)
             }
         }
         .fixedSize(horizontal: true, vertical: true)
@@ -1159,11 +1213,19 @@ struct IslandPanelView: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(.white.opacity(0.10), lineWidth: 1)
         )
-        .help(usageHelpText(for: provider))
-        .accessibilityLabel("\(letter) \(metricText)")
+        .contentShape(Rectangle())
     }
 
     private func usageHelpText(for provider: UsageProviderPresentation) -> String {
+        if provider.id == "workbuddy", let snap = model.workBuddyUsageSnapshot {
+            var parts = ["WorkBuddy: \(snap.pointsRemaining.formatted()) points remaining"]
+            if let capturedAt = snap.capturedAt {
+                parts.append("updated \(capturedAt.formatted(.relative(presentation: .numeric)))")
+            }
+            parts.append("click to refresh")
+            return parts.joined(separator: " · ")
+        }
+
         if provider.id == "opencode", let snap = model.openCodeUsageSnapshot {
             var parts: [String] = []
             if let used = snap.creditsUsed {
@@ -1188,6 +1250,7 @@ struct IslandPanelView: View {
             switch provider.id {
             case "codex": return "Codex"
             case "grok": return "Grok"
+            case "workbuddy": return "WorkBuddy"
             case "opencode": return "OpenCode (Copilot premium)"
             case "claude": return "Claude"
             default: return provider.title
@@ -1256,6 +1319,8 @@ private enum UsagePrimaryDisplay: Equatable {
     case percentUsed(Int)
     /// Copilot OpenCode: raw AI credits already consumed this cycle.
     case creditsUsed(Int)
+    /// WorkBuddy: whole points still available, with no reset date.
+    case pointsRemaining(Int)
 }
 
 private struct UsageProviderPresentation: Identifiable {
@@ -1308,6 +1373,8 @@ private struct UsageProviderPresentation: Identifiable {
             "\(value)"
         case .creditsUsed(let value):
             "\(value)"
+        case .pointsRemaining(let value):
+            "\(value)"
         }
     }
 
@@ -1324,6 +1391,8 @@ private struct UsageProviderPresentation: Identifiable {
             "C"
         case "grok":
             "G"
+        case "workbuddy":
+            "W"
         case "opencode":
             "O"
         default:

@@ -28,6 +28,7 @@ final class HookInstallationCoordinator {
     var claudeUsageSnapshot: ClaudeUsageSnapshot?
     var codexUsageSnapshot: CodexUsageSnapshot?
     var grokUsageSnapshot: GrokUsageSnapshot?
+    var workBuddyUsageSnapshot: WorkBuddyUsageSnapshot?
     /// OpenCode badge = GitHub Copilot premium quota (scheme B).
     var openCodeUsageSnapshot: OpenCodeUsageSnapshot?
     var hooksBinaryURL: URL?
@@ -103,6 +104,10 @@ final class HookInstallationCoordinator {
 
     @ObservationIgnored
     private var grokUsageMonitorTask: Task<Void, Never>?
+
+    @ObservationIgnored
+    private var workBuddyUsageMonitorTask: Task<Void, Never>?
+    private var workBuddyUsageMonitorIteration = 0
 
     @ObservationIgnored
     private var openCodeUsageMonitorTask: Task<Void, Never>?
@@ -856,6 +861,48 @@ final class HookInstallationCoordinator {
         }
     }
 
+    func refreshWorkBuddyUsageState(
+        forceRefresh: Bool = false,
+        promptForAccessibility: Bool = false
+    ) {
+        Task { [weak self] in
+            guard let self else { return }
+
+            if promptForAccessibility,
+               WorkBuddyUsageBridge.ensureAccessibilityPermission(prompt: true) == false {
+                return
+            }
+
+            let processIdentifier = WorkBuddyUsageBridge.runningProcessIdentifier()
+            let liveSnapshot = await Task.detached(priority: .utility) {
+                processIdentifier.flatMap {
+                    WorkBuddyUsageBridge.capture(
+                        processIdentifier: $0,
+                        forceRefresh: forceRefresh
+                    )
+                }
+            }.value
+
+            do {
+                if let liveSnapshot {
+                    try WorkBuddyUsageLoader.write(liveSnapshot)
+                }
+                let snapshot: WorkBuddyUsageSnapshot?
+                if let liveSnapshot {
+                    snapshot = liveSnapshot
+                } else {
+                    snapshot = try WorkBuddyUsageLoader.load()
+                }
+                if self.workBuddyUsageSnapshot != snapshot {
+                    self.workBuddyUsageSnapshot = snapshot
+                }
+            } catch {
+                // Keep the last verified balance if the bridge snapshot is
+                // temporarily unavailable or being atomically replaced.
+            }
+        }
+    }
+
     // MARK: - Intent-aware helpers
 
     /// Reports whether the startup flow should auto-install hooks for the
@@ -1182,6 +1229,28 @@ final class HookInstallationCoordinator {
         }
 
         startGrokUsageLogWatcherIfNeeded()
+    }
+
+    /// WorkBuddy is a whole-points balance with no reset window.
+    func startWorkBuddyUsageMonitoringIfNeeded() {
+        guard workBuddyUsageMonitorTask == nil else { return }
+
+        workBuddyUsageMonitorTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                // While WorkBuddy is in use, its account/activity UI exposes
+                // the newly granted balance and passive capture avoids flicker.
+                // When it is in the background, press its own refresh control
+                // once per minute so gifts and plan changes do not require an
+                // app restart or a manually opened account menu.
+                let shouldForceRefresh = self.workBuddyUsageMonitorIteration.isMultiple(of: 4)
+                    && WorkBuddyUsageBridge.isApplicationActive() == false
+                self.refreshWorkBuddyUsageState(forceRefresh: shouldForceRefresh)
+                self.workBuddyUsageMonitorIteration &+= 1
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
     }
 
     /// OpenCode / Copilot premium quota — same 15s cadence as Grok.
