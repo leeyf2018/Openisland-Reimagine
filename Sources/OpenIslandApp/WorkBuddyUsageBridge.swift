@@ -11,6 +11,7 @@ enum WorkBuddyUsageBridge {
         "com.workbuddy.workbuddy",
     ]
     private static let maxNodes = 700
+    private static let electronAccessibilityWarmupDelay: TimeInterval = 0.3
 
     @MainActor
     static func runningProcessIdentifier() -> pid_t? {
@@ -47,7 +48,7 @@ enum WorkBuddyUsageBridge {
         guard ensureAccessibilityPermission(prompt: false) else { return nil }
 
         let application = AXUIElementCreateApplication(processIdentifier)
-        var nodes = accessibilityNodes(from: application)
+        var nodes = preparedAccessibilityNodes(from: application)
         var accountTrigger: AXUIElement?
         var openedMenu = false
 
@@ -93,6 +94,24 @@ enum WorkBuddyUsageBridge {
             capturedAt: .now,
             pointsRemaining: points
         )
+    }
+
+    /// Electron keeps its web-content accessibility tree disabled until an
+    /// assistive client opts in. Without this attribute WorkBuddy exposes only
+    /// a handful of native shell nodes, so the bridge can only reuse old cache.
+    private static func preparedAccessibilityNodes(from application: AXUIElement) -> [AccessibilityNode] {
+        _ = AXUIElementSetAttributeValue(
+            application,
+            "AXManualAccessibility" as CFString,
+            kCFBooleanTrue
+        )
+
+        var nodes = accessibilityNodes(from: application)
+        if nodes.count <= 10 {
+            Thread.sleep(forTimeInterval: electronAccessibilityWarmupDelay)
+            nodes = accessibilityNodes(from: application)
+        }
+        return nodes
     }
 
     private struct AccessibilityNode {

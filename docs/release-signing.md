@@ -69,6 +69,20 @@ regular entitlement file and keep library validation enabled.
 
 5 岁版：我们自己的学生证没有苹果学校的班级号。Mac 如果硬要比班级号，就会把主程序和 Sparkle 小帮手挡在门外。自签名版本只关掉这一次“比班级号”，其他门锁继续保留；以后换成苹果正式学生证，就重新打开这道检查。
 
+## WorkBuddy balance refresh
+
+WorkBuddy is an Electron app. Open Island enables Electron's macOS
+accessibility tree before it opens the account menu, presses WorkBuddy's own
+refresh button, and reads the resulting whole-points balance. The app never
+reads WorkBuddy's private daemon token or private RPC.
+
+The background cadence remains ten minutes, while clicking the `W` status
+forces an immediate refresh. Daily check-ins, onboarding rewards, company
+subscription grants, and temporary grants are all reflected through the same
+official `积分余额` total.
+
+5 岁版：Open Island 请 WorkBuddy 打开自己的存钱罐窗口，再读它亲自显示的数字。它不猜这些金币是打卡、公司赠送，还是临时活动送来的。
+
 ## Release flow
 
 1. Merge the reviewed version/config change to `main`.
