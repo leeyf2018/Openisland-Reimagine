@@ -21,8 +21,14 @@ bundle_dir="${OPEN_ISLAND_BUNDLE_DIR:-$package_root/$app_name.app}"
 zip_path="${OPEN_ISLAND_ZIP_PATH:-$package_root/$app_name.zip}"
 dmg_path="${OPEN_ISLAND_DMG_PATH:-$package_root/$app_name.dmg}"
 signing_identity="${OPEN_ISLAND_SIGN_IDENTITY:-}"
+signing_mode="${OPEN_ISLAND_SIGNING_MODE:-developer-id}"
 notary_profile="${OPEN_ISLAND_NOTARY_PROFILE:-}"
 code_sign_timestamp="${OPEN_ISLAND_CODE_SIGN_TIMESTAMP:-true}"
+
+if [[ "$signing_mode" != "developer-id" && "$signing_mode" != "self-signed" && "$signing_mode" != "adhoc" ]]; then
+    echo "OPEN_ISLAND_SIGNING_MODE must be developer-id, self-signed, or adhoc." >&2
+    exit 1
+fi
 
 code_sign_timestamp_args=()
 if [[ "$code_sign_timestamp" == "true" ]]; then
@@ -35,6 +41,12 @@ fi
 brand_script="$repo_root/scripts/generate_brand_icons.py"
 dmg_bg_script="$repo_root/scripts/generate_dmg_background.py"
 entitlements_path="$repo_root/config/packaging/OpenIslandApp.entitlements"
+if [[ -n "$signing_identity" && "$signing_mode" == "self-signed" ]]; then
+    # A self-signed certificate has no Apple Team ID. Hardened Runtime library
+    # validation otherwise rejects the separately signed Sparkle framework at
+    # launch even when both signatures use the same local certificate.
+    entitlements_path="$repo_root/config/packaging/OpenIslandApp.self-signed.entitlements"
+fi
 
 cd "$repo_root"
 
@@ -154,35 +166,6 @@ if [[ $verify_errors -gt 0 ]]; then
 fi
 echo "Bundle structure verified."
 
-# --- Smoke-test the app outside the repo to catch Bundle.module fallback hacks ---
-# SPM's generated resource accessor has a hardcoded fallback to the local .build/
-# directory. Running from /tmp ensures the app works without that crutch.
-smoke_dir="$(mktemp -d)/smoke-test"
-mkdir -p "$smoke_dir"
-cp -R "$bundle_dir" "$smoke_dir/"
-smoke_app="$smoke_dir/$(basename "$bundle_dir")"
-smoke_binary="$smoke_app/Contents/MacOS/OpenIslandApp"
-if [[ -x "$smoke_binary" ]]; then
-    # Launch and give it a few seconds — if it crashes, the pid disappears.
-    "$smoke_binary" &
-    smoke_pid=$!
-    sleep 3
-    if kill -0 "$smoke_pid" 2>/dev/null; then
-        kill "$smoke_pid" 2>/dev/null || true
-        wait "$smoke_pid" 2>/dev/null || true
-        echo "Smoke test passed — app launched successfully outside repo."
-    else
-        wait "$smoke_pid" 2>/dev/null || true
-        echo "ERROR: app crashed when launched outside the repo directory." >&2
-        echo "       This likely means Bundle.module cannot find its resource bundle." >&2
-        rm -rf "$(dirname "$smoke_dir")"
-        exit 1
-    fi
-    rm -rf "$(dirname "$smoke_dir")"
-else
-    echo "WARNING: smoke test skipped — binary not found at $smoke_binary" >&2
-fi
-
 sparkle_fw="$bundle_dir/Contents/Frameworks/Sparkle.framework"
 
 if [[ -n "$signing_identity" ]]; then
@@ -224,6 +207,38 @@ else
     codesign --force --sign - "$bundle_dir/Contents/Helpers/OpenIslandHooks" 2>/dev/null || true
     codesign --force --sign - "$bundle_dir/Contents/Helpers/OpenIslandSetup" 2>/dev/null || true
     codesign --force --sign - "$bundle_dir" 2>/dev/null || true
+fi
+
+# --- Smoke-test the final signed app outside the repo ---
+# This must run after code signing. A pre-signing launch cannot detect Hardened
+# Runtime failures such as a self-signed app rejecting Sparkle for lacking a
+# matching Apple Team ID.
+smoke_root="$(mktemp -d)"
+smoke_dir="$smoke_root/smoke-test"
+mkdir -p "$smoke_dir"
+cp -R "$bundle_dir" "$smoke_dir/"
+smoke_app="$smoke_dir/$(basename "$bundle_dir")"
+smoke_binary="$smoke_app/Contents/MacOS/OpenIslandApp"
+if [[ -x "$smoke_binary" ]]; then
+    "$smoke_binary" &
+    smoke_pid=$!
+    sleep 3
+    if kill -0 "$smoke_pid" 2>/dev/null; then
+        kill "$smoke_pid" 2>/dev/null || true
+        wait "$smoke_pid" 2>/dev/null || true
+        echo "Signed bundle smoke test passed — app stayed running outside repo."
+    else
+        wait "$smoke_pid" 2>/dev/null || true
+        echo "ERROR: final signed app exited during the launch smoke test." >&2
+        echo "       Check resource loading, embedded-framework signatures, and entitlements." >&2
+        rm -rf "$smoke_root"
+        exit 1
+    fi
+    rm -rf "$smoke_root"
+else
+    echo "ERROR: smoke-test binary not found at $smoke_binary" >&2
+    rm -rf "$smoke_root"
+    exit 1
 fi
 
 ditto -c -k --keepParent "$bundle_dir" "$zip_path"

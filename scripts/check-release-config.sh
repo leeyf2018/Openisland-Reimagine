@@ -60,4 +60,16 @@ grep -Fq "$expected_releases" "$repo_root/Sources/OpenIslandApp/UpdateChecker.sw
     exit 1
 }
 
+plutil -lint "$repo_root/config/packaging/OpenIslandApp.self-signed.entitlements" >/dev/null
+grep -Fq "com.apple.security.cs.disable-library-validation" \
+    "$repo_root/config/packaging/OpenIslandApp.self-signed.entitlements" || {
+    echo "self-signed entitlements must disable Team-ID library validation" >&2
+    exit 1
+}
+grep -Fq 'OPEN_ISLAND_SIGNING_MODE: ${{ steps.signing.outputs.mode }}' \
+    "$repo_root/.github/workflows/release.yml" || {
+    echo "release workflow must pass the resolved signing mode to packaging" >&2
+    exit 1
+}
+
 echo "release config check passed: $REIMAGINE_VERSION ($REIMAGINE_BUILD_NUMBER)"

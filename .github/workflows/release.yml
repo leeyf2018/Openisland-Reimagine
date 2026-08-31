@@ -128,6 +128,7 @@ jobs:
           OPEN_ISLAND_VERSION: ${{ steps.version.outputs.version }}
           OPEN_ISLAND_BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
           OPEN_ISLAND_SIGN_IDENTITY: ${{ steps.signing.outputs.resolved_identity }}
+          OPEN_ISLAND_SIGNING_MODE: ${{ steps.signing.outputs.mode }}
           OPEN_ISLAND_CODE_SIGN_TIMESTAMP: ${{ steps.signing.outputs.mode == 'self-signed' && 'false' || 'true' }}
           OPEN_ISLAND_UNIVERSAL: "true"
         run: |

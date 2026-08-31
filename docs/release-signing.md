@@ -61,11 +61,20 @@ notarized. Users may still need to right-click the app and choose **Open** on
 first launch. Sparkle EdDSA signing remains mandatory and independently proves
 the update ZIP belongs to Reimagine.
 
+Because a self-signed certificate has no Apple Team ID, Reimagine packages use
+`OpenIslandApp.self-signed.entitlements` to disable only Hardened Runtime's
+Team-ID library validation. This lets the separately signed embedded
+`Sparkle.framework` load at startup. Developer ID packages continue to use the
+regular entitlement file and keep library validation enabled.
+
+5 岁版：我们自己的学生证没有苹果学校的班级号。Mac 如果硬要比班级号，就会把主程序和 Sparkle 小帮手挡在门外。自签名版本只关掉这一次“比班级号”，其他门锁继续保留；以后换成苹果正式学生证，就重新打开这道检查。
+
 ## Release flow
 
 1. Merge the reviewed version/config change to `main`.
 2. Push the exact canonical tag from `config/release.env`.
-3. The workflow packages and validates the app.
+3. The workflow packages, signs, and launches the final signed app for three
+   seconds. A launch-time Sparkle or entitlement failure stops the release.
 4. It signs the update ZIP with `SPARKLE_EDDSA_KEY`.
 5. It publishes the GitHub Release before updating the appcast.
 6. The appcast update is merged through its own CI-checked PR.
