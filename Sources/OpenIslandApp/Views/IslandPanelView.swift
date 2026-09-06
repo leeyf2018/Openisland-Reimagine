@@ -948,7 +948,7 @@ struct IslandPanelView: View {
                 providers.append(
                     UsageProviderPresentation(
                         id: "codex",
-                        // Single-letter chip (user: C / G / W / O) — help text keeps full name.
+                        // Single-letter chip (user: C / G / GB / W) — help text keeps full name.
                         title: "C",
                         windows: windows
                     )
@@ -974,6 +974,25 @@ struct IslandPanelView: View {
             )
         }
 
+        // GB sits immediately right of G: SuperGrok Chat / Grok Bot weekly %.
+        if model.showCodexUsage,
+           let snapshot = model.grokBotUsageSnapshot {
+            providers.append(
+                UsageProviderPresentation(
+                    id: "grokbot",
+                    title: "GB",
+                    windows: [
+                        UsageWindowPresentation(
+                            id: "grokbot-chat",
+                            label: snapshot.windowLabel,
+                            usedPercentage: snapshot.usedPercentage,
+                            resetsAt: snapshot.resetsAt
+                        ),
+                    ]
+                )
+            )
+        }
+
         // WorkBuddy is one whole-points balance. It intentionally has no
         // usage window, percentage, or reset-days row.
         if model.showCodexUsage,
@@ -984,28 +1003,6 @@ struct IslandPanelView: View {
                     title: "W",
                     primaryDisplay: .pointsRemaining(snapshot.pointsRemaining),
                     windows: []
-                )
-            )
-        }
-
-        // OpenCode badge = GitHub Copilot premium (scheme B); single letter "O".
-        // Primary number = raw credits already used (not % of plan).
-        if model.showCodexUsage,
-           let snapshot = model.openCodeUsageSnapshot {
-            let creditsUsed = Int((snapshot.creditsUsed ?? 0).rounded())
-            providers.append(
-                UsageProviderPresentation(
-                    id: "opencode",
-                    title: "O",
-                    primaryDisplay: .creditsUsed(creditsUsed),
-                    windows: [
-                        UsageWindowPresentation(
-                            id: "opencode-premium",
-                            label: snapshot.windowLabel,
-                            usedPercentage: snapshot.usedPercentage,
-                            resetsAt: snapshot.resetsAt
-                        ),
-                    ]
                 )
             )
         }
@@ -1024,20 +1021,20 @@ struct IslandPanelView: View {
             return ([providers[0]], [])
         case 2:
             // Keep C+G (or any pair of single-letter chips) on the left of the notch.
-            if ids.isSubset(of: ["codex", "grok", "workbuddy", "opencode"]) {
+            if ids.isSubset(of: ["codex", "grok", "grokbot", "workbuddy"]) {
                 return (providers, [])
             }
             return ([providers[0]], [providers[1]])
         case 3:
-            // C + G + O are ultra-short; keep all left when possible.
-            if ids == Set(["codex", "grok", "opencode"]) {
+            // C + G + GB (or C + G + W) are ultra-short; keep all left when possible.
+            if ids.isSubset(of: ["codex", "grok", "grokbot", "workbuddy"]),
+               ids.contains("codex"), ids.contains("grok") {
                 return (providers, [])
             }
             fallthrough
         case 4:
-            // C + G + W + O remain one ordered group; W must sit directly
-            // left of the retained O/Copilot card.
-            if ids == Set(["codex", "grok", "workbuddy", "opencode"]) {
+            // C + G + GB + W remain one ordered group; GB sits right of G.
+            if ids == Set(["codex", "grok", "grokbot", "workbuddy"]) {
                 return (providers, [])
             }
             fallthrough
@@ -1197,7 +1194,7 @@ struct IslandPanelView: View {
                     .monospacedDigit()
                     .lineLimit(1)
             } else if provider.id == "workbuddy" {
-                // Reserve the same third-row height as C/G/O. The row remains
+                // Reserve the same third-row height as C/G/GB. The row remains
                 // visually empty because WorkBuddy has no reset-days concept.
                 Text("(0)")
                     .font(.system(size: Self.usageResetFontSize, weight: .semibold, design: .monospaced))
@@ -1226,20 +1223,13 @@ struct IslandPanelView: View {
             return parts.joined(separator: " · ")
         }
 
-        if provider.id == "opencode", let snap = model.openCodeUsageSnapshot {
-            var parts: [String] = []
-            if let used = snap.creditsUsed {
-                if let ent = snap.creditsEntitlement, ent > 0 {
-                    parts.append(
-                        "OpenCode (Copilot): \(Int(used.rounded())) credits used · \(Int(ent.rounded())) included/mo"
-                    )
-                } else {
-                    parts.append("OpenCode (Copilot): \(Int(used.rounded())) credits used")
-                }
-            } else {
-                parts.append("OpenCode (Copilot premium)")
+        if provider.id == "grokbot", let snap = model.grokBotUsageSnapshot {
+            var parts = [
+                "Grok Bot (Chat): \(snap.roundedUsedPercentage)% of SuperGrok weekly pool",
+            ]
+            if let overall = snap.overallUsedPercentage {
+                parts.append("CLI overall \(Int(overall.rounded()))%")
             }
-            parts.append("~\(snap.roundedUsedPercentage)% of plan default")
             if let days = provider.peakResetDaysRemaining {
                 parts.append("resets in \(days)d")
             }
@@ -1250,8 +1240,8 @@ struct IslandPanelView: View {
             switch provider.id {
             case "codex": return "Codex"
             case "grok": return "Grok"
+            case "grokbot": return "Grok Bot (Chat)"
             case "workbuddy": return "WorkBuddy"
-            case "opencode": return "OpenCode (Copilot premium)"
             case "claude": return "Claude"
             default: return provider.title
             }
@@ -1391,10 +1381,10 @@ private struct UsageProviderPresentation: Identifiable {
             "C"
         case "grok":
             "G"
+        case "grokbot":
+            "GB"
         case "workbuddy":
             "W"
-        case "opencode":
-            "O"
         default:
             String(title.prefix(1))
         }

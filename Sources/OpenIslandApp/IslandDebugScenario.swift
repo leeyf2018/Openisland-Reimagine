@@ -13,6 +13,7 @@ struct IslandDebugSnapshot {
     let selectedSessionID: String?
     var codexUsageSnapshot: CodexUsageSnapshot? = nil
     var grokUsageSnapshot: GrokUsageSnapshot? = nil
+    var grokBotUsageSnapshot: GrokBotUsageSnapshot? = nil
     var workBuddyUsageSnapshot: WorkBuddyUsageSnapshot? = nil
     var openCodeUsageSnapshot: OpenCodeUsageSnapshot? = nil
 }
@@ -113,21 +114,20 @@ enum IslandDebugScenario: String, CaseIterable, Identifiable {
                     periodType: "USAGE_PERIOD_TYPE_WEEKLY",
                     resetsAt: now.addingTimeInterval(4 * 86_400)
                 ),
+                grokBotUsageSnapshot: GrokBotUsageSnapshot(
+                    source: "debug://grokbot-usage",
+                    capturedAt: now,
+                    usedPercentage: 1,
+                    product: "GrokChat",
+                    periodType: "USAGE_PERIOD_TYPE_WEEKLY",
+                    resetsAt: now.addingTimeInterval(6 * 86_400),
+                    subscriptionTier: "SuperGrok",
+                    overallUsedPercentage: 67
+                ),
                 workBuddyUsageSnapshot: WorkBuddyUsageSnapshot(
                     source: "debug://workbuddy-usage",
                     capturedAt: now,
                     pointsRemaining: 6_200
-                ),
-                openCodeUsageSnapshot: OpenCodeUsageSnapshot(
-                    source: "debug://opencode-copilot-usage",
-                    capturedAt: now,
-                    usedPercentage: 18,
-                    remainingPercentage: 82,
-                    isUnlimited: false,
-                    planType: "business",
-                    quotaID: "premium_interactions",
-                    creditsUsed: 54,
-                    resetsAt: now.addingTimeInterval(20 * 86_400)
                 )
             )
 

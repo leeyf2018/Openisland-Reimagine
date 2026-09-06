@@ -7,13 +7,14 @@ This document lists **user-facing deltas** in `Openisland-Reimagine` relative to
 | Chip | Source | Primary number | Notes |
 |------|--------|----------------|-------|
 | **C** | Codex local usage (rollout / existing Open Island path) | Used **%** of window | Reset days as `(N)` under the number |
-| **G** | Grok CLI billing log `~/.grok/logs/unified.jsonl` | Used **%** | Poll ~15s + log watch |
+| **G** | Grok CLI billing log `~/.grok/logs/unified.jsonl` | Used **%** | Poll ~15s + log watch; overall SuperGrok pool |
+| **GB** | Live `cli-chat-proxy.grok.com/v1/billing?format=credits` → `productUsage.GrokChat` | Used **%** | Grok Bot / grok.com Chat slice; same weekly window as G; cache `~/Library/Application Support/OpenIsland/grokbot-chat-usage.json` |
 | **W** | WorkBuddy accessibility UI | **Points remaining** (whole number) | No reset-day row; startup/click refresh plus a 10-minute background poll |
-| **O** | GitHub Copilot via `gh api /copilot_internal/user` | **Credits used** (raw) | Business seats: do not trust `percent_remaining` alone when `unlimited=true`; color may still use plan-relative % |
 
 Layout notes:
 
-- Single-letter titles: C / G / W / O
+- Titles: C / G / GB / W
+- **O** (GitHub Copilot credits) is removed from the island header. The OpenCode loader remains in source for rollback.
 - Vertical chip: letter → metric → `(resetDays)`
 - No trailing `%` on the chip (hover / help still explains %)
 - Notch-aware leading inset so the leading digit is not clipped by the island corner
@@ -28,14 +29,14 @@ Same packaging entry as upstream:
 
 See [BUILDING.md](./BUILDING.md).
 
-## Requirements for full C/G/W/O display
+## Requirements for full C/G/GB/W display
 
 | Chip | Needs on the user machine |
 |------|---------------------------|
 | C | Codex usage data (as upstream) |
 | G | Grok CLI writing billing lines to `~/.grok/logs/unified.jsonl` |
+| GB | `grok login` so `~/.grok/auth.json` has a non-expired SuperGrok token (same account as grok.com Chat / Grok Bot) |
 | W | WorkBuddy running and Open Island granted macOS Accessibility access |
-| O | [GitHub CLI](https://cli.github.com/) (`gh`) installed and `gh auth login` completed |
 
 ## Releases (prebuilt)
 
@@ -56,6 +57,13 @@ Prebuilt macOS app zips are published under GitHub **Releases** (not inside the 
 | Point docs at `releases/latest` only | Re-ask each time whether to keep old packages |
 
 Source history remains in `main` git; only the **downloadable .app.zip surface** is single-slot.
+
+### GB chip replaces O (1.1.6-reimagine.34)
+
+| Chip | Change |
+|------|--------|
+| **O** | Removed from the island header (GitHub Copilot credits). Loader kept in source. |
+| **GB** | New chip immediately right of **G**. Live SuperGrok `productUsage.GrokChat` (Grok Bot / grok.com Chat). Same weekly used% + remaining-days layout as G. |
 
 ### Usage loader fixes (1.1.6-grok1.21 / 1.1.6-grok1.22)
 

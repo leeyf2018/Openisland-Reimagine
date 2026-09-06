@@ -37,8 +37,11 @@ final class HookInstallationCoordinator {
     var codexUsageSnapshot: CodexUsageSnapshot?
     var grokUsageSnapshot: GrokUsageSnapshot?
     var workBuddyUsageSnapshot: WorkBuddyUsageSnapshot?
-    /// OpenCode badge = GitHub Copilot premium quota (scheme B).
+    /// OpenCode badge = GitHub Copilot premium quota (scheme B). Kept for
+    /// rollback; the island no longer shows the O chip.
     var openCodeUsageSnapshot: OpenCodeUsageSnapshot?
+    /// Grok Bot / grok.com Chat (`GrokChat` SuperGrok product slice).
+    var grokBotUsageSnapshot: GrokBotUsageSnapshot?
     var hooksBinaryURL: URL?
     var isCodexSetupBusy = false
     var isClaudeHookSetupBusy = false
@@ -118,6 +121,9 @@ final class HookInstallationCoordinator {
 
     @ObservationIgnored
     private var openCodeUsageMonitorTask: Task<Void, Never>?
+
+    @ObservationIgnored
+    private var grokBotUsageMonitorTask: Task<Void, Never>?
 
     /// Watches `~/.grok/logs/unified.jsonl` so usage chips update when Grok
     /// writes a new `billing: fetched credits config` line — not only on the
@@ -868,6 +874,24 @@ final class HookInstallationCoordinator {
         }
     }
 
+    func refreshGrokBotUsageState() {
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                let snapshot = try await Task.detached(priority: .utility) {
+                    try GrokBotUsageLoader.load()
+                }.value
+                if self.grokBotUsageSnapshot != snapshot {
+                    self.grokBotUsageSnapshot = snapshot
+                }
+            } catch {
+                // Keep last snapshot; live billing can 401 when the CLI token
+                // is mid-refresh.
+            }
+        }
+    }
+
     func refreshWorkBuddyUsageState(
         forceRefresh: Bool = false,
         promptForAccessibility: Bool = false
@@ -1262,7 +1286,7 @@ final class HookInstallationCoordinator {
         }
     }
 
-    /// OpenCode / Copilot premium quota — same 15s cadence as Grok.
+    /// OpenCode / Copilot premium quota — retained but no longer started.
     func startOpenCodeUsageMonitoringIfNeeded() {
         guard openCodeUsageMonitorTask == nil else { return }
 
@@ -1271,6 +1295,20 @@ final class HookInstallationCoordinator {
 
             while !Task.isCancelled {
                 self.refreshOpenCodeUsageState()
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
+    }
+
+    /// Grok Bot Chat slice — same 15s cadence as Grok CLI overall %.
+    func startGrokBotUsageMonitoringIfNeeded() {
+        guard grokBotUsageMonitorTask == nil else { return }
+
+        grokBotUsageMonitorTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                self.refreshGrokBotUsageState()
                 try? await Task.sleep(for: .seconds(15))
             }
         }

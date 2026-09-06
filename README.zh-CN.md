@@ -1,6 +1,6 @@
 # Open Island — Reimagine
 
-**基于 [Open Island](https://github.com/Octane0411/open-vibe-island) 的 GPL-3.0 衍生版**，增加刘海用量芯片：**C**（Codex %）· **G**（Grok %）· **W**（WorkBuddy 剩余点数）· **O**（GitHub Copilot **已用 credits**）。
+**基于 [Open Island](https://github.com/Octane0411/open-vibe-island) 的 GPL-3.0 衍生版**，增加刘海用量芯片：**C**（Codex %）· **G**（Grok CLI 总池 %）· **GB**（Grok Bot / Chat %）· **W**（WorkBuddy 剩余点数）。
 
 | | |
 |--|--|
@@ -38,9 +38,9 @@ export OPEN_ISLAND_PACKAGE_ROOT="$PWD/output/package"
 
 详见 [docs/BUILDING.md](docs/BUILDING.md)。
 
-### O（Copilot credits）
+### GB（Grok Bot / Chat）
 
-需要本机安装并登录 [GitHub CLI](https://cli.github.com/)：`gh auth login`。
+需要本机已 `grok login`，`~/.grok/auth.json` 里有未过期的 SuperGrok token。数字是 SuperGrok 周池里的 **GrokChat** 切片，和 grok.com → Settings → Usage 的 SuperGrok Chat 百分比同一口径。
 
 ### W（WorkBuddy 剩余点数）
 
