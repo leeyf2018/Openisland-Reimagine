@@ -93,6 +93,7 @@ final class AppModel {
     var codexUsageSnapshot: CodexUsageSnapshot? { hooks.codexUsageSnapshot }
     var grokUsageSnapshot: GrokUsageSnapshot? { hooks.grokUsageSnapshot }
     var workBuddyUsageSnapshot: WorkBuddyUsageSnapshot? { hooks.workBuddyUsageSnapshot }
+    var grokBotUsageSnapshot: GrokBotUsageSnapshot? { hooks.grokBotUsageSnapshot }
     var openCodeUsageSnapshot: OpenCodeUsageSnapshot? { hooks.openCodeUsageSnapshot }
     var hooksBinaryURL: URL? { hooks.hooksBinaryURL }
     var codexHooksInstalled: Bool { hooks.codexHooksInstalled }
@@ -266,10 +267,10 @@ final class AppModel {
                 codexAppServer.startUsageMonitoringIfNeeded()
                 hooks.refreshGrokUsageState()
                 hooks.startGrokUsageMonitoringIfNeeded()
+                hooks.refreshGrokBotUsageState()
+                hooks.startGrokBotUsageMonitoringIfNeeded()
                 hooks.refreshWorkBuddyUsageState(forceRefresh: true)
                 hooks.startWorkBuddyUsageMonitoringIfNeeded()
-                hooks.refreshOpenCodeUsageState()
-                hooks.startOpenCodeUsageMonitoringIfNeeded()
             }
         }
     }
@@ -703,6 +704,7 @@ final class AppModel {
         }
         monitoring.onGrokUsageRefreshSuggested = { [weak self] in
             self?.hooks.refreshGrokUsageState()
+            self?.hooks.refreshGrokBotUsageState()
         }
 
         discovery.codexRolloutWatcher.eventHandler = { [weak self] event in
@@ -1149,10 +1151,10 @@ final class AppModel {
                 hooks.startCodexUsageMonitoringIfNeeded()
                 hooks.refreshGrokUsageState()
                 hooks.startGrokUsageMonitoringIfNeeded()
+                hooks.refreshGrokBotUsageState()
+                hooks.startGrokBotUsageMonitoringIfNeeded()
                 hooks.refreshWorkBuddyUsageState(forceRefresh: true)
                 hooks.startWorkBuddyUsageMonitoringIfNeeded()
-                hooks.refreshOpenCodeUsageState()
-                hooks.startOpenCodeUsageMonitoringIfNeeded()
             }
             updateChecker.startIfNeeded()
 
@@ -1308,6 +1310,7 @@ final class AppModel {
         hooks.codexUsageSnapshot = snapshot.codexUsageSnapshot
         hooks.grokUsageSnapshot = snapshot.grokUsageSnapshot
         hooks.workBuddyUsageSnapshot = snapshot.workBuddyUsageSnapshot
+        hooks.grokBotUsageSnapshot = snapshot.grokBotUsageSnapshot
         hooks.openCodeUsageSnapshot = snapshot.openCodeUsageSnapshot
         lastActionMessage = "Loaded debug scenario: \(snapshot.title)."
         harnessRuntimeMonitor?.recordMilestone("scenarioLoaded", message: snapshot.title)

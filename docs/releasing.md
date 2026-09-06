@@ -34,7 +34,7 @@ migration:
 1. Quit Open Island.
 2. Keep a rollback copy of the existing app.
 3. Replace `/Applications/Open Island.app` with the verified `.31` Reimagine package.
-4. Launch it once and confirm the C/G/W/O chips and session workflow.
+4. Launch it once and confirm the C/G/GB/W chips and session workflow.
 
 The production bundle ID stays the same, so existing settings continue. Grant
 Accessibility once to the stable-signed `.31` app. From then onward, both local
@@ -92,7 +92,7 @@ private key into a file, workflow log, issue, or commit.
   public key.
 - Release ZIP exists before its appcast item is merged.
 - The ZIP signature verifies with Sparkle tooling.
-- After the one-time bridge install, C/G/W/O and session business functions are
+- After the one-time bridge install, C/G/GB/W and session business functions are
   still present.
 
 Apple Developer ID notarization is a separate, optional paid trust layer. The
