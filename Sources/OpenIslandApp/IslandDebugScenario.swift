@@ -117,12 +117,10 @@ enum IslandDebugScenario: String, CaseIterable, Identifiable {
                 grokBotUsageSnapshot: GrokBotUsageSnapshot(
                     source: "debug://grokbot-usage",
                     capturedAt: now,
-                    usedPercentage: 1,
-                    product: "GrokChat",
-                    periodType: "USAGE_PERIOD_TYPE_WEEKLY",
-                    resetsAt: now.addingTimeInterval(6 * 86_400),
-                    subscriptionTier: "SuperGrok",
-                    overallUsedPercentage: 67
+                    usedPercentage: 8,
+                    product: "GrokBot",
+                    resetsAt: now.addingTimeInterval(5 * 86_400),
+                    subscriptionTier: "SuperGrok"
                 ),
                 workBuddyUsageSnapshot: WorkBuddyUsageSnapshot(
                     source: "debug://workbuddy-usage",

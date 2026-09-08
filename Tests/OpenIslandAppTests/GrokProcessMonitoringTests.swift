@@ -86,9 +86,7 @@ struct GrokProcessMonitoringTests {
     }
 
     @Test
-    func completedAliveGrokSessionReentersRunningWhenHistorySaysTurnOpen() {
-        // Without a completed chat_history tail, turnAppearsComplete is false, so
-        // a completed-but-alive row correctly returns to `.running`.
+    func completedAliveGrokSessionIgnoresIncompleteTailWithoutNewUserTurn() {
         let sessionID = "019fc800-aaaa-bbbb-cccc-120039934db8"
         var session = AgentSession(
             id: sessionID,
@@ -102,6 +100,7 @@ struct GrokProcessMonitoringTests {
         )
         session.isProcessAlive = true
         session.isSessionEnded = false
+        session.grokMetadata = GrokSessionMetadata(lastUserPrompt: "Original task")
 
         let coordinator = ProcessMonitoringCoordinator()
         let merged = coordinator.mergedWithSyntheticGrokSessions(
@@ -115,13 +114,109 @@ struct GrokProcessMonitoringTests {
                     terminalApp: "Ghostty"
                 ),
             ],
-            now: Date(timeIntervalSince1970: 30_100)
+            now: Date(timeIntervalSince1970: 30_100),
+            loadPresentation: { _, _ in
+                GrokSessionPresentation(
+                    activitySummary: "Original task",
+                    turnAppearsComplete: false
+                )
+            }
         )
 
         #expect(merged.count == 1)
         #expect(merged[0].id == sessionID)
         #expect(merged[0].isProcessAlive)
+        #expect(merged[0].phase == .completed)
+        #expect(merged[0].updatedAt == Date(timeIntervalSince1970: 30_000))
+    }
+
+    @Test
+    func completedAliveGrokSessionReentersRunningForNewUserTurn() {
+        let sessionID = "019fc800-aaaa-bbbb-cccc-120039934db9"
+        var session = AgentSession(
+            id: sessionID,
+            title: "Grok · Project",
+            tool: .grok,
+            origin: .live,
+            attachmentState: .attached,
+            phase: .completed,
+            summary: "1. Done",
+            updatedAt: Date(timeIntervalSince1970: 31_000),
+            grokMetadata: GrokSessionMetadata(lastUserPrompt: "Original task")
+        )
+        session.isProcessAlive = true
+
+        let coordinator = ProcessMonitoringCoordinator()
+        let merged = coordinator.mergedWithSyntheticGrokSessions(
+            existingSessions: [session],
+            activeProcesses: [
+                .init(
+                    tool: .grok,
+                    sessionID: sessionID,
+                    workingDirectory: "/tmp/project",
+                    terminalTTY: "/dev/ttys001",
+                    terminalApp: "Ghostty"
+                ),
+            ],
+            now: Date(timeIntervalSince1970: 31_100),
+            loadPresentation: { _, _ in
+                GrokSessionPresentation(
+                    activitySummary: "Follow-up task",
+                    turnAppearsComplete: false
+                )
+            }
+        )
+
         #expect(merged[0].phase == .running)
+        #expect(merged[0].updatedAt == Date(timeIntervalSince1970: 31_100))
+    }
+
+    @Test
+    func lateSummaryRefreshDoesNotMakeCompletedGrokSessionRecent() {
+        let sessionID = "019fc800-aaaa-bbbb-cccc-120039934dc0"
+        let completedAt = Date(timeIntervalSince1970: 32_000)
+        var session = AgentSession(
+            id: sessionID,
+            title: "Grok · Project",
+            tool: .grok,
+            origin: .live,
+            attachmentState: .attached,
+            phase: .completed,
+            summary: "1. Done",
+            updatedAt: completedAt,
+            grokMetadata: GrokSessionMetadata(lastUserPrompt: "Original task")
+        )
+        session.isProcessAlive = true
+
+        let coordinator = ProcessMonitoringCoordinator()
+        let merged = coordinator.mergedWithSyntheticGrokSessions(
+            existingSessions: [session],
+            activeProcesses: [
+                .init(
+                    tool: .grok,
+                    sessionID: sessionID,
+                    workingDirectory: "/tmp/project",
+                    terminalTTY: "/dev/ttys001",
+                    terminalApp: "Ghostty"
+                ),
+            ],
+            now: Date(timeIntervalSince1970: 99_000),
+            loadPresentation: { _, _ in
+                GrokSessionPresentation(
+                    title: "Late generated title",
+                    activitySummary: "Original task",
+                    lastAssistantMessage: "Finished.",
+                    completionDigest: "1. Finished.",
+                    turnAppearsComplete: true,
+                    turnCompletionKey: "completed-turn"
+                )
+            }
+        )
+
+        #expect(merged[0].phase == .completed)
+        #expect(merged[0].title == "Grok · Late generated title")
+        #expect(merged[0].summary == "1. Finished.")
+        #expect(merged[0].updatedAt == completedAt)
     }
 
     @Test

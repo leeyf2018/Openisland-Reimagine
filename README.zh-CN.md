@@ -38,9 +38,9 @@ export OPEN_ISLAND_PACKAGE_ROOT="$PWD/output/package"
 
 详见 [docs/BUILDING.md](docs/BUILDING.md)。
 
-### GB（Grok Bot / Chat）
+### GB（Grok Bot）
 
-需要本机已 `grok login`，`~/.grok/auth.json` 里有未过期的 SuperGrok token。数字是 SuperGrok 周池里的 **GrokChat** 切片，和 grok.com → Settings → Usage 的 SuperGrok Chat 百分比同一口径。
+数字是 **Grok Bot.app 自己的周额度**（Cursor Sand `GetSandUsageStatus`），不是 grok.com Chat。需要本机 Cursor / Grok Bot 已登录。读不到 Sand 时才退回 SuperGrok 的 GrokChat 切片（那个切片常常停在 1%）。
 
 ### W（WorkBuddy 剩余点数）
 

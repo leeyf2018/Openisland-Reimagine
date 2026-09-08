@@ -905,6 +905,7 @@ struct IslandPanelView: View {
                         id: "claude-5h",
                         label: "5h",
                         usedPercentage: fiveHour.usedPercentage,
+                        windowMinutes: 300,
                         resetsAt: fiveHour.resetsAt
                     )
                 )
@@ -916,6 +917,7 @@ struct IslandPanelView: View {
                         id: "claude-7d",
                         label: "7d",
                         usedPercentage: sevenDay.usedPercentage,
+                        windowMinutes: 10_080,
                         resetsAt: sevenDay.resetsAt
                     )
                 )
@@ -940,6 +942,7 @@ struct IslandPanelView: View {
                     id: "codex-\(window.key)",
                     label: window.label,
                     usedPercentage: window.usedPercentage,
+                    windowMinutes: window.windowMinutes,
                     resetsAt: window.resetsAt
                 )
             }
@@ -974,7 +977,7 @@ struct IslandPanelView: View {
             )
         }
 
-        // GB sits immediately right of G: SuperGrok Chat / Grok Bot weekly %.
+        // GB sits immediately right of G: Grok Bot weekly included %.
         if model.showCodexUsage,
            let snapshot = model.grokBotUsageSnapshot {
             providers.append(
@@ -1224,9 +1227,12 @@ struct IslandPanelView: View {
         }
 
         if provider.id == "grokbot", let snap = model.grokBotUsageSnapshot {
-            var parts = [
-                "Grok Bot (Chat): \(snap.roundedUsedPercentage)% of SuperGrok weekly pool",
-            ]
+            var parts: [String]
+            if snap.isSandMeter {
+                parts = ["Grok Bot: \(snap.roundedUsedPercentage)% of weekly included allowance"]
+            } else {
+                parts = ["Grok Bot fallback (Chat slice): \(snap.roundedUsedPercentage)% of SuperGrok weekly pool"]
+            }
             if let overall = snap.overallUsedPercentage {
                 parts.append("CLI overall \(Int(overall.rounded()))%")
             }
@@ -1240,7 +1246,7 @@ struct IslandPanelView: View {
             switch provider.id {
             case "codex": return "Codex"
             case "grok": return "Grok"
-            case "grokbot": return "Grok Bot (Chat)"
+            case "grokbot": return "Grok Bot"
             case "workbuddy": return "WorkBuddy"
             case "claude": return "Claude"
             default: return provider.title
@@ -1304,7 +1310,7 @@ struct IslandPanelView: View {
     }
 }
 
-private enum UsagePrimaryDisplay: Equatable {
+enum UsagePrimaryDisplay: Equatable {
     /// Codex / Grok style: used percentage of the billing window.
     case percentUsed(Int)
     /// Copilot OpenCode: raw AI credits already consumed this cycle.
@@ -1313,7 +1319,7 @@ private enum UsagePrimaryDisplay: Equatable {
     case pointsRemaining(Int)
 }
 
-private struct UsageProviderPresentation: Identifiable {
+struct UsageProviderPresentation: Identifiable {
     let id: String
     let title: String
     let primaryDisplay: UsagePrimaryDisplay
@@ -1343,6 +1349,17 @@ private struct UsageProviderPresentation: Identifiable {
         }
     }
 
+    /// The reset badge describes the longest quota cycle (normally weekly),
+    /// independently from whichever window currently has the highest usage.
+    var resetWindow: UsageWindowPresentation? {
+        windows.max { lhs, rhs in
+            if lhs.windowMinutes == rhs.windowMinutes {
+                return (lhs.resetsAt ?? .distantPast) < (rhs.resetsAt ?? .distantPast)
+            }
+            return lhs.windowMinutes < rhs.windowMinutes
+        }
+    }
+
     var peakWindowLabel: String {
         peakWindow?.label ?? ""
     }
@@ -1368,9 +1385,9 @@ private struct UsageProviderPresentation: Identifiable {
         }
     }
 
-    /// Whole days until peak window resets; drives the `(4)` under the number.
+    /// Whole days until the longest quota window resets; drives `(4)`.
     var peakResetDaysRemaining: Int? {
-        peakWindow?.resetDaysRemaining
+        resetWindow?.resetDaysRemaining
     }
 
     var shortTitle: String {
@@ -1391,11 +1408,26 @@ private struct UsageProviderPresentation: Identifiable {
     }
 }
 
-private struct UsageWindowPresentation: Identifiable {
+struct UsageWindowPresentation: Identifiable {
     let id: String
     let label: String
     let usedPercentage: Double
+    let windowMinutes: Int
     let resetsAt: Date?
+
+    init(
+        id: String,
+        label: String,
+        usedPercentage: Double,
+        windowMinutes: Int = 0,
+        resetsAt: Date?
+    ) {
+        self.id = id
+        self.label = label
+        self.usedPercentage = usedPercentage
+        self.windowMinutes = windowMinutes
+        self.resetsAt = resetsAt
+    }
 
     var roundedUsedPercentage: Int {
         Int(usedPercentage.rounded())

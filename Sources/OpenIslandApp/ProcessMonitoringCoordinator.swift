@@ -1065,10 +1065,14 @@ final class ProcessMonitoringCoordinator {
         existingSessions: [AgentSession],
         activeProcesses: [ActiveProcessSnapshot],
         now: Date = .now,
-        endMissingSessions: Bool = true
+        endMissingSessions: Bool = true,
+        loadPresentation: ((String, String?) -> GrokSessionPresentation)? = nil
     ) -> [AgentSession] {
         let activeGrokProcesses = activeProcesses.filter { $0.tool == .grok }
         let presentationLoader = GrokActiveSessionDiscovery()
+        let loadPresentation = loadPresentation ?? { sessionID, cwd in
+            presentationLoader.loadPresentation(sessionID: sessionID, cwd: cwd)
+        }
         let aliveGrokIDs = Set(activeGrokProcesses.compactMap(\.sessionID))
 
         // Refresh presentation text for already-tracked Grok rows (title + task summary).
@@ -1076,10 +1080,8 @@ final class ProcessMonitoringCoordinator {
             guard session.tool == .grok, !session.isDemoSession else {
                 return session
             }
-            let presentation = presentationLoader.loadPresentation(
-                sessionID: session.id,
-                cwd: session.jumpTarget?.workingDirectory
-            )
+            let previousUserPrompt = session.grokMetadata?.lastUserPrompt
+            let presentation = loadPresentation(session.id, session.jumpTarget?.workingDirectory)
             var updated = applyingGrokPresentation(presentation, to: session, now: now)
             let processIsAlive = aliveGrokIDs.contains(session.id)
             if processIsAlive {
@@ -1131,8 +1133,12 @@ final class ProcessMonitoringCoordinator {
                 }
             } else if processIsAlive,
                       !presentation.turnAppearsComplete,
-                      updated.phase == .completed {
-                // New user turn started — go back to running.
+                      updated.phase == .completed,
+                      (session.isSessionEnded
+                        || (presentation.activitySummary != nil
+                            && presentation.activitySummary != previousUserPrompt)) {
+                // Only explicit new user activity may reopen a completed turn.
+                // A partial tail read or late summary write is not new work.
                 updated.phase = .running
                 updated.updatedAt = now
             } else if endMissingSessions,
@@ -1262,6 +1268,7 @@ final class ProcessMonitoringCoordinator {
         now: Date
     ) -> AgentSession {
         var updated = session
+        let completedAt = session.phase == .completed ? session.updatedAt : nil
         let workspaceName = session.jumpTarget?.workingDirectory
             .map { WorkspaceNameResolver.workspaceName(for: $0) }
             ?? "Workspace"
@@ -1314,6 +1321,11 @@ final class ProcessMonitoringCoordinator {
            updated.summary != digest {
             updated.summary = digest
             updated.updatedAt = now
+        }
+        // Title/digest files may be generated in a batch hours after the turn.
+        // Refresh their text without making an old completed task recent again.
+        if let completedAt {
+            updated.updatedAt = completedAt
         }
         return updated
     }

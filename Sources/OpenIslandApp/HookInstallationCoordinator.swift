@@ -40,7 +40,7 @@ final class HookInstallationCoordinator {
     /// OpenCode badge = GitHub Copilot premium quota (scheme B). Kept for
     /// rollback; the island no longer shows the O chip.
     var openCodeUsageSnapshot: OpenCodeUsageSnapshot?
-    /// Grok Bot / grok.com Chat (`GrokChat` SuperGrok product slice).
+    /// Grok Bot weekly included usage (Cursor Sand). Chat slice is fallback only.
     var grokBotUsageSnapshot: GrokBotUsageSnapshot?
     var hooksBinaryURL: URL?
     var isCodexSetupBusy = false
@@ -886,8 +886,7 @@ final class HookInstallationCoordinator {
                     self.grokBotUsageSnapshot = snapshot
                 }
             } catch {
-                // Keep last snapshot; live billing can 401 when the CLI token
-                // is mid-refresh.
+                // Keep last snapshot; Sand JWT or CLI token can 401 mid-refresh.
             }
         }
     }
@@ -1300,7 +1299,7 @@ final class HookInstallationCoordinator {
         }
     }
 
-    /// Grok Bot Chat slice — same 15s cadence as Grok CLI overall %.
+    /// Grok Bot Sand meter — same 15s cadence as Grok CLI overall %.
     func startGrokBotUsageMonitoringIfNeeded() {
         guard grokBotUsageMonitorTask == nil else { return }
 
