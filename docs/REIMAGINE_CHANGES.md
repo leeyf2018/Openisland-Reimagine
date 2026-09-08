@@ -2,7 +2,7 @@
 
 This document lists **user-facing deltas** in `Openisland-Reimagine` relative to upstream [Open Island](https://github.com/Octane0411/open-vibe-island).
 
-## Usage chips (notch header)
+## Usage chips (notch header; reset-window fix in 1.1.6-reimagine.36)
 
 | Chip | Source | Primary number | Notes |
 |------|--------|----------------|-------|
@@ -21,7 +21,7 @@ Layout notes:
 - For multi-window providers such as Codex, the number still shows the highest-used
   window while `(resetDays)` follows the longest cycle (normally the weekly window).
 
-## Grok completion freshness
+## Grok completion freshness (1.1.6-reimagine.36)
 
 - A completed Grok turn only returns to Running after a different user prompt is
   observed (or an ended process is genuinely recovered); an incomplete tail read
