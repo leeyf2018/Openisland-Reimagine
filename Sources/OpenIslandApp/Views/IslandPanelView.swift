@@ -974,7 +974,7 @@ struct IslandPanelView: View {
             )
         }
 
-        // GB sits immediately right of G: SuperGrok Chat / Grok Bot weekly %.
+        // GB sits immediately right of G: Grok Bot weekly included %.
         if model.showCodexUsage,
            let snapshot = model.grokBotUsageSnapshot {
             providers.append(
@@ -1224,9 +1224,12 @@ struct IslandPanelView: View {
         }
 
         if provider.id == "grokbot", let snap = model.grokBotUsageSnapshot {
-            var parts = [
-                "Grok Bot (Chat): \(snap.roundedUsedPercentage)% of SuperGrok weekly pool",
-            ]
+            var parts: [String]
+            if snap.isSandMeter {
+                parts = ["Grok Bot: \(snap.roundedUsedPercentage)% of weekly included allowance"]
+            } else {
+                parts = ["Grok Bot fallback (Chat slice): \(snap.roundedUsedPercentage)% of SuperGrok weekly pool"]
+            }
             if let overall = snap.overallUsedPercentage {
                 parts.append("CLI overall \(Int(overall.rounded()))%")
             }
@@ -1240,7 +1243,7 @@ struct IslandPanelView: View {
             switch provider.id {
             case "codex": return "Codex"
             case "grok": return "Grok"
-            case "grokbot": return "Grok Bot (Chat)"
+            case "grokbot": return "Grok Bot"
             case "workbuddy": return "WorkBuddy"
             case "claude": return "Claude"
             default: return provider.title

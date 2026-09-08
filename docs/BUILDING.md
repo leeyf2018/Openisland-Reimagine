@@ -6,9 +6,10 @@
 - Xcode Command Line Tools (or full Xcode) with Swift 6.x toolchain
 - Network on first build (SwiftPM resolves MarkdownUI + Sparkle)
 
-Optional for the **GB** (Grok Bot / Chat) chip after install:
+Optional for the **GB** (Grok Bot) chip after install:
 
-- Local `grok login` so `~/.grok/auth.json` has a non-expired SuperGrok token
+- Cursor or Grok Bot signed in locally (`state.vscdb` `cursorAuth/accessToken`)
+- `grok login` is only the Chat-slice fallback
 
 ## Prefer prebuilt? (no compile)
 

@@ -26,10 +26,48 @@ struct GrokBotUsageTests {
         #expect(snapshot?.windowLabel == "7d")
         #expect(snapshot?.resetsAt == isoDate("2026-09-09T15:11:55.430921Z"))
         #expect(snapshot?.subscriptionTier == "SuperGrok")
+        #expect(snapshot?.isSandMeter == false)
     }
 
     @Test
-    func parseAcceptsProductGrokChatAndGrokBotAliases() throws {
+    func parseSandReadsFractionalGrokBotWeeklyPercent() throws {
+        let json = """
+        {"currentPeriodStart":"2026-09-05T18:22:04.315Z","nextResetTimestampUtc":"2026-09-11T11:10:57.236Z","usagePercent":7.934295,"hasAvailableUsage":true,"hasNonZeroIncludedLimit":true,"includedUsageSuperGrokPlan":"supergrok","grokPlanLabel":"SuperGrok"}
+        """.data(using: .utf8)!
+
+        let snapshot = try GrokBotUsageLoader.parseSand(
+            data: json,
+            capturedAt: Self.midPeriodNow
+        )
+
+        #expect(snapshot?.roundedUsedPercentage == 8)
+        #expect(snapshot?.product == "GrokBot")
+        #expect(snapshot?.isSandMeter == true)
+        #expect(snapshot?.subscriptionTier == "SuperGrok")
+        #expect(snapshot?.resetsAt == isoDate("2026-09-11T11:10:57.236Z"))
+        #expect(snapshot?.periodStart == isoDate("2026-09-05T18:22:04.315Z"))
+        #expect(snapshot?.source.contains("GetSandUsageStatus") == true)
+    }
+
+    @Test
+    func parseSandReturnsNilWhenBotAllowanceIsZero() throws {
+        let json = """
+        {"usagePercent":0,"hasNonZeroIncludedLimit":false,"nextResetTimestampUtc":"2026-09-11T11:10:57.236Z"}
+        """.data(using: .utf8)!
+
+        let snapshot = try GrokBotUsageLoader.parseSand(data: json, capturedAt: Self.midPeriodNow)
+        #expect(snapshot == nil)
+    }
+
+    @Test
+    func isChatProductNameDoesNotTreatGrokBotAsChat() {
+        #expect(GrokBotUsageLoader.isChatProductName("GrokBot") == false)
+        #expect(GrokBotUsageLoader.isSandProductName("GrokBot") == true)
+        #expect(GrokBotUsageLoader.isSandProductName("GrokChat") == false)
+    }
+
+    @Test
+    func parseAcceptsProductGrokChatAliasAndIgnoresGrokBotInCreditsPayload() throws {
         let chat = try GrokBotUsageLoader.parse(
             data: creditsJSON(products: [("PRODUCT_GROK_CHAT", 3)]),
             source: "test",
@@ -37,14 +75,16 @@ struct GrokBotUsageTests {
         )
         #expect(chat?.roundedUsedPercentage == 3)
 
-        let bot = try GrokBotUsageLoader.parse(
+        let botRow = try GrokBotUsageLoader.parse(
             data: creditsJSON(products: [("GrokBot", 8)]),
             source: "test",
             capturedAt: Self.midPeriodNow
         )
-        #expect(bot?.roundedUsedPercentage == 8)
+        #expect(botRow?.roundedUsedPercentage == 0)
+        #expect(botRow?.product == "GrokChat")
         #expect(GrokBotUsageLoader.isChatProductName("GrokBuild") == false)
         #expect(GrokBotUsageLoader.isChatProductName("GrokImagine") == false)
+        #expect(GrokBotUsageLoader.isChatProductName("GrokBot") == false)
     }
 
     @Test
@@ -120,6 +160,18 @@ struct GrokBotUsageTests {
 
         #expect(snapshot?.roundedUsedPercentage == 1)
         #expect(snapshot?.product == "GrokChat")
+    }
+
+    @Test
+    func jwtExpiryReadsExpClaim() {
+        let payload = Data("{\"exp\":1792939285}".utf8).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "="))
+        let token = "eyJhbGciOiJub25lIn0.\(payload)."
+        let expiry = GrokBotUsageLoader.jwtExpiry(of: token)
+        #expect(expiry == Date(timeIntervalSince1970: 1_792_939_285))
+        #expect(GrokBotUsageLoader.isUsableAccessToken("short", now: Self.midPeriodNow) == false)
     }
 
     @Test

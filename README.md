@@ -32,10 +32,10 @@ This is **not** a ground-up rewrite. It is a **derivative** of Open Island with 
 
 ### Fork highlights
 
-- Notch header chips: **C** (Codex %), **G** (Grok CLI overall %), **GB** (Grok Bot / Chat %), **W** (WorkBuddy points remaining)
+- Notch header chips: **C** (Codex %), **G** (Grok CLI overall %), **GB** (Grok Bot weekly included %), **W** (WorkBuddy points remaining)
 - Compact vertical chips + reset-day hints `(N)`
 - Grok usage: local billing log + ~15s poll
-- Grok Bot Chat: live SuperGrok `GrokChat` product slice + ~15s poll (same weekly window as grok.com Settings → Usage)
+- Grok Bot: live Cursor Sand weekly included % + ~15s poll (not grok.com Chat)
 - WorkBuddy: current whole-point balance via its accessibility UI, with startup/manual refresh and a 10-minute background poll
 
 Details: [docs/REIMAGINE_CHANGES.md](docs/REIMAGINE_CHANGES.md) · Build: [docs/BUILDING.md](docs/BUILDING.md) · Docs map: [docs/index.md](docs/index.md) · CI harness: [`scripts/harness.sh`](scripts/harness.sh)

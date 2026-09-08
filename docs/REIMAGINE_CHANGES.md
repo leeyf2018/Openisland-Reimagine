@@ -8,7 +8,7 @@ This document lists **user-facing deltas** in `Openisland-Reimagine` relative to
 |------|--------|----------------|-------|
 | **C** | Codex local usage (rollout / existing Open Island path) | Used **%** of window | Reset days as `(N)` under the number |
 | **G** | Grok CLI billing log `~/.grok/logs/unified.jsonl` | Used **%** | Poll ~15s + log watch; overall SuperGrok pool |
-| **GB** | Live `cli-chat-proxy.grok.com/v1/billing?format=credits` → `productUsage.GrokChat` | Used **%** | Grok Bot / grok.com Chat slice; same weekly window as G; cache `~/Library/Application Support/OpenIsland/grokbot-chat-usage.json` |
+| **GB** | Live Cursor `GetSandUsageStatus` (Grok Bot weekly included %). SuperGrok `GrokChat` slice is fallback only | Used **%** | Independent Bot week (not grok.com Chat 1%); cache `~/Library/Application Support/OpenIsland/grokbot-chat-usage.json` |
 | **W** | WorkBuddy accessibility UI | **Points remaining** (whole number) | No reset-day row; startup/click refresh plus a 10-minute background poll |
 
 Layout notes:
@@ -35,7 +35,7 @@ See [BUILDING.md](./BUILDING.md).
 |------|---------------------------|
 | C | Codex usage data (as upstream) |
 | G | Grok CLI writing billing lines to `~/.grok/logs/unified.jsonl` |
-| GB | `grok login` so `~/.grok/auth.json` has a non-expired SuperGrok token (same account as grok.com Chat / Grok Bot) |
+| GB | Cursor (or Grok Bot) signed in locally so `state.vscdb` has a live `cursorAuth/accessToken`. SuperGrok `grok login` is Chat-slice fallback only |
 | W | WorkBuddy running and Open Island granted macOS Accessibility access |
 
 ## Releases (prebuilt)
@@ -58,12 +58,12 @@ Prebuilt macOS app zips are published under GitHub **Releases** (not inside the 
 
 Source history remains in `main` git; only the **downloadable .app.zip surface** is single-slot.
 
-### GB chip replaces O (1.1.6-reimagine.34)
+### GB chip replaces O (1.1.6-reimagine.34 / .35)
 
 | Chip | Change |
 |------|--------|
 | **O** | Removed from the island header (GitHub Copilot credits). Loader kept in source. |
-| **GB** | New chip immediately right of **G**. Live SuperGrok `productUsage.GrokChat` (Grok Bot / grok.com Chat). Same weekly used% + remaining-days layout as G. |
+| **GB** | New chip immediately right of **G**. **1.1.6-reimagine.35:** live Grok Bot weekly included % from Cursor Sand `GetSandUsageStatus` (example: 7.9% → chip `8`). SuperGrok `productUsage.GrokChat` is fallback only — that Chat slice stays near 1% of the shared pool and is not Grok Bot. |
 
 ### Usage loader fixes (1.1.6-grok1.21 / 1.1.6-grok1.22)
 
