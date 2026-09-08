@@ -18,6 +18,16 @@ Layout notes:
 - Vertical chip: letter → metric → `(resetDays)`
 - No trailing `%` on the chip (hover / help still explains %)
 - Notch-aware leading inset so the leading digit is not clipped by the island corner
+- For multi-window providers such as Codex, the number still shows the highest-used
+  window while `(resetDays)` follows the longest cycle (normally the weekly window).
+
+## Grok completion freshness
+
+- A completed Grok turn only returns to Running after a different user prompt is
+  observed (or an ended process is genuinely recovered); an incomplete tail read
+  alone cannot reopen it.
+- Late `summary.json` title/digest generation refreshes text without rewriting the
+  turn's completion time, so an hours-old task cannot become the newest task again.
 
 ## Build / package
 
