@@ -5,6 +5,19 @@ import OpenIslandCore
 
 @MainActor
 final class OverlayPanelController {
+    enum MouseEventOrigin: Equatable, Sendable {
+        case global
+        case local
+    }
+
+    enum MouseDownDisposition: Equatable, Sendable {
+        case none
+        case open
+        case close
+        case closeAndRepost
+        case repost
+    }
+
     private static let preferredNotchOpenedPanelWidth: CGFloat = 540
     private static let preferredTopBarOpenedPanelWidth: CGFloat = 520
     private static let preferredNotificationPanelWidth: CGFloat = 620
@@ -30,11 +43,18 @@ final class OverlayPanelController {
     private static let completionCardChromeHeight: CGFloat = 187
     private static let completionCardMinHeight: CGFloat = 210
     private static let completionCardMaxHeight: CGFloat = 400
+    /// Keep the large native window only until the SwiftUI close animation has
+    /// finished. Afterwards the OS-level hit region contracts to the visible
+    /// closed pill, so transparent pixels can never form a click-blocking slab.
+    private static let compactFrameDelay: TimeInterval = 0.4
 
     private var panel: NotchPanel?
     private var eventMonitors = NotchEventMonitors()
     private var hoverTimer: DispatchWorkItem?
     private var hoverCancelGrace: DispatchWorkItem?
+    private var frameCollapseTask: DispatchWorkItem?
+    private var interactiveRequested = false
+    private var preferredScreenID: String?
     weak var model: AppModel?
     private(set) var notchRect: NSRect = .zero
 
@@ -52,30 +72,35 @@ final class OverlayPanelController {
 
     func ensurePanel(model: AppModel, preferredScreenID: String?) {
         self.model = model
+        self.preferredScreenID = preferredScreenID
         let panel = self.panel ?? makePanel(model: model)
         self.panel = panel
         positionPanel(panel, preferredScreenID: preferredScreenID, animated: false)
         panel.orderFrontRegardless()
-        panel.ignoresMouseEvents = true
-        panel.acceptsMouseMovedEvents = false
+        interactiveRequested = false
+        updatePanelMouseEventPolicy(at: NSEvent.mouseLocation)
         startEventMonitoring()
     }
 
     func show(model: AppModel, preferredScreenID: String?) -> OverlayPlacementDiagnostics? {
         self.model = model
+        self.preferredScreenID = preferredScreenID
+        frameCollapseTask?.cancel()
+        frameCollapseTask = nil
         let panel = self.panel ?? makePanel(model: model)
         self.panel = panel
         let diagnostics = positionPanel(panel, preferredScreenID: preferredScreenID, animated: true)
         presentPanel(panel, activates: Self.shouldActivatePanel(for: model.notchOpenReason))
-        panel.ignoresMouseEvents = false
-        panel.acceptsMouseMovedEvents = true
+        interactiveRequested = true
+        updatePanelMouseEventPolicy(at: NSEvent.mouseLocation)
         startEventMonitoring()
         return diagnostics
     }
 
     func hide() {
-        panel?.ignoresMouseEvents = true
-        panel?.acceptsMouseMovedEvents = false
+        interactiveRequested = false
+        updatePanelMouseEventPolicy(at: NSEvent.mouseLocation)
+        scheduleCompactPanelFrame()
     }
 
     func setInteractive(_ interactive: Bool) {
@@ -83,8 +108,15 @@ final class OverlayPanelController {
             return
         }
 
-        panel.ignoresMouseEvents = !interactive
-        panel.acceptsMouseMovedEvents = interactive
+        interactiveRequested = interactive
+        if interactive {
+            frameCollapseTask?.cancel()
+            frameCollapseTask = nil
+            _ = positionPanel(panel, preferredScreenID: preferredScreenID, animated: false)
+        } else {
+            scheduleCompactPanelFrame()
+        }
+        updatePanelMouseEventPolicy(at: NSEvent.mouseLocation)
 
         if interactive {
             presentPanel(panel, activates: Self.shouldActivatePanel(for: model?.notchOpenReason))
@@ -92,6 +124,7 @@ final class OverlayPanelController {
     }
 
     func reposition(preferredScreenID: String?) -> OverlayPlacementDiagnostics? {
+        self.preferredScreenID = preferredScreenID
         guard let panel else {
             return placementDiagnostics(preferredScreenID: preferredScreenID)
         }
@@ -232,13 +265,15 @@ final class OverlayPanelController {
 
         eventMonitors.start { [weak self] location in
             self?.handleMouseMoved(location)
-        } mouseDownHandler: { [weak self] location in
-            self?.handleMouseDown(location)
+        } mouseDownHandler: { [weak self] location, origin in
+            self?.handleMouseDown(location, origin: origin)
         }
     }
 
     private func handleMouseMoved(_ screenLocation: NSPoint) {
         guard let model else { return }
+
+        updatePanelMouseEventPolicy(at: screenLocation)
 
         let inClosedSurfaceArea = isPointInClosedSurfaceArea(screenLocation)
 
@@ -261,20 +296,90 @@ final class OverlayPanelController {
         }
     }
 
-    private func handleMouseDown(_ screenLocation: NSPoint) {
+    private func handleMouseDown(_ screenLocation: NSPoint, origin: MouseEventOrigin) {
         guard let model else { return }
 
         let inClosedSurfaceArea = isPointInClosedSurfaceArea(screenLocation)
 
-        if model.notchStatus == .closed && inClosedSurfaceArea {
+        let disposition = Self.mouseDownDisposition(
+            status: model.notchStatus,
+            origin: origin,
+            isInsideClosedSurface: inClosedSurfaceArea,
+            isInsideExpandedSurface: isPointInExpandedArea(screenLocation)
+        )
+
+        switch disposition {
+        case .none:
+            break
+        case .open:
             cancelHoverOpenImmediately()
             model.notchOpen(reason: .click)
-        } else if model.notchStatus == .opened {
-            if !isPointInExpandedArea(screenLocation) {
-                model.notchClose()
-                repostMouseDown(at: screenLocation)
-            }
+        case .close:
+            model.notchClose()
+        case .closeAndRepost:
+            model.notchClose()
+            repostMouseDown(at: screenLocation)
+        case .repost:
+            interactiveRequested = false
+            updatePanelMouseEventPolicy(at: screenLocation)
+            repostMouseDown(at: screenLocation)
         }
+    }
+
+    nonisolated static func mouseDownDisposition(
+        status: NotchStatus,
+        origin: MouseEventOrigin,
+        isInsideClosedSurface: Bool,
+        isInsideExpandedSurface: Bool
+    ) -> MouseDownDisposition {
+        switch status {
+        case .closed, .popping:
+            if isInsideClosedSurface {
+                return .open
+            }
+            return origin == .local ? .repost : .none
+        case .opened:
+            guard !isInsideExpandedSurface else { return .none }
+            return origin == .local ? .closeAndRepost : .close
+        }
+    }
+
+    nonisolated static func shouldIgnoreMouseEvents(
+        interactiveRequested: Bool,
+        status: NotchStatus,
+        isInsideExpandedSurface: Bool
+    ) -> Bool {
+        !interactiveRequested || status != .opened || !isInsideExpandedSurface
+    }
+
+    private func updatePanelMouseEventPolicy(at screenLocation: NSPoint) {
+        guard let panel, let model else { return }
+
+        let shouldIgnore = Self.shouldIgnoreMouseEvents(
+            interactiveRequested: interactiveRequested,
+            status: model.notchStatus,
+            isInsideExpandedSurface: isPointInExpandedArea(screenLocation)
+        )
+        panel.ignoresMouseEvents = shouldIgnore
+        panel.acceptsMouseMovedEvents = !shouldIgnore
+    }
+
+    private func scheduleCompactPanelFrame() {
+        frameCollapseTask?.cancel()
+
+        let task = DispatchWorkItem { [weak self] in
+            guard let self, let panel = self.panel, self.model?.notchStatus != .opened else {
+                return
+            }
+            _ = self.positionPanel(
+                panel,
+                preferredScreenID: self.preferredScreenID,
+                animated: false
+            )
+            self.frameCollapseTask = nil
+        }
+        frameCollapseTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.compactFrameDelay, execute: task)
     }
 
     /// Grace period before a hover-open timer is cancelled.  Prevents
@@ -460,17 +565,20 @@ final class OverlayPanelController {
         )
     }
 
-    /// Always returns the maximum (opened) panel size so the window never
-    /// needs to resize.  All visual transitions are driven purely by SwiftUI
-    /// inside this fixed-size window.
     private func panelSize(for model: AppModel?, on screen: NSScreen) -> CGSize {
         let insets = panelShadowInsets
 
+        let closedSize = CGSize(
+            width: (model.map { closedPanelWidth(for: $0, on: screen) } ?? screen.notchSize.width) + (insets.horizontal * 2),
+            height: screen.notchSize.height + insets.bottom
+        )
+
         guard let model else {
-            return CGSize(
+            let openedSize = CGSize(
                 width: openedPanelWidth(for: screen) + Self.openedContentWidthPadding + (insets.horizontal * 2),
                 height: screen.notchSize.height + Self.openedEmptyStateHeight + Self.openedContentBottomPadding + insets.bottom
             )
+            return Self.nativePanelSize(status: .closed, closedSize: closedSize, openedSize: openedSize)
         }
 
         let isNotificationMode = model.notchOpenReason == .notification
@@ -483,10 +591,19 @@ final class OverlayPanelController {
         // when sessions come and go while opened.
         let height = screen.notchSize.height + max(contentHeight, Self.openedEmptyStateHeight) + Self.openedContentBottomPadding + insets.bottom
 
-        return CGSize(
+        let openedSize = CGSize(
             width: panelWidth + Self.openedContentWidthPadding + (insets.horizontal * 2),
             height: height
         )
+        return Self.nativePanelSize(status: model.notchStatus, closedSize: closedSize, openedSize: openedSize)
+    }
+
+    nonisolated static func nativePanelSize(
+        status: NotchStatus,
+        closedSize: CGSize,
+        openedSize: CGSize
+    ) -> CGSize {
+        status == .opened ? openedSize : closedSize
     }
 
     /// Constant insets — always opened size since the window never shrinks.
@@ -798,7 +915,7 @@ final class NotchEventMonitors {
 
     func start(
         mouseMoveHandler: @MainActor @escaping @Sendable (NSPoint) -> Void,
-        mouseDownHandler: @MainActor @escaping @Sendable (NSPoint) -> Void
+        mouseDownHandler: @MainActor @escaping @Sendable (NSPoint, OverlayPanelController.MouseEventOrigin) -> Void
     ) {
         let throttleInterval: TimeInterval = 0.05
 
@@ -823,12 +940,12 @@ final class NotchEventMonitors {
 
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { event in
             let location = NSEvent.mouseLocation
-            Task { @MainActor in mouseDownHandler(location) }
+            Task { @MainActor in mouseDownHandler(location, .global) }
         }
 
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
             let location = NSEvent.mouseLocation
-            Task { @MainActor in mouseDownHandler(location) }
+            Task { @MainActor in mouseDownHandler(location, .local) }
             return event
         }
     }

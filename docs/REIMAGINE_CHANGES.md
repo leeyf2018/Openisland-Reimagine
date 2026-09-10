@@ -2,6 +2,18 @@
 
 This document lists **user-facing deltas** in `Openisland-Reimagine` relative to upstream [Open Island](https://github.com/Octane0411/open-vibe-island).
 
+## Transparent overlay click-through (1.1.6-reimagine.37)
+
+- The collapsed island now contracts its native status-bar window to the
+  visible pill after the close animation. It no longer leaves a large,
+  transparent rectangle over apps underneath.
+- An opened island captures mouse input only while the pointer is inside its
+  visible surface; transparent margins pass through at the window level.
+- Local and global mouse-down events are distinguished so outside clicks are
+  neither lost nor reposted twice.
+- The deterministic harness rejects collapsed overlay windows taller than 90
+  points, preventing this regression from shipping again.
+
 ## Usage chips (notch header; reset-window fix in 1.1.6-reimagine.36)
 
 | Chip | Source | Primary number | Notes |

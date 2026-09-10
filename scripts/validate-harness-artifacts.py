@@ -214,8 +214,10 @@ def main() -> None:
             fail(f"expected closed scenario to use sessionList surface, got {island_surface!r}")
         require_frame_between(
             overlay_frame,
-            width=(200, 620),
-            height=(35, 500),
+            # A collapsed overlay must keep a compact native window. A large,
+            # transparent status-bar window can intercept clicks in apps below.
+            width=(200, 480),
+            height=(35, 90),
             context="closed overlay frame",
         )
         if report.get("liveSessionCount") != 9 and not any("9" in value for value in text_values):
