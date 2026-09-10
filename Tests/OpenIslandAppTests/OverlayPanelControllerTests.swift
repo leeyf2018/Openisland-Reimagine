@@ -92,6 +92,90 @@ struct OverlayPanelControllerTests {
         #expect(!OverlayPanelController.shouldActivatePanel(for: nil))
     }
 
+    @Test
+    func closedOverlayAlwaysIgnoresNativeMouseEvents() {
+        #expect(OverlayPanelController.shouldIgnoreMouseEvents(
+            interactiveRequested: true,
+            status: .closed,
+            isInsideExpandedSurface: true
+        ))
+    }
+
+    @Test
+    func openedOverlayOnlyCapturesInsideVisibleSurface() {
+        #expect(!OverlayPanelController.shouldIgnoreMouseEvents(
+            interactiveRequested: true,
+            status: .opened,
+            isInsideExpandedSurface: true
+        ))
+        #expect(OverlayPanelController.shouldIgnoreMouseEvents(
+            interactiveRequested: true,
+            status: .opened,
+            isInsideExpandedSurface: false
+        ))
+    }
+
+    @Test
+    func disabledOverlayIgnoresMouseEventsEvenWhenPointerIsInside() {
+        #expect(OverlayPanelController.shouldIgnoreMouseEvents(
+            interactiveRequested: false,
+            status: .opened,
+            isInsideExpandedSurface: true
+        ))
+    }
+
+    @Test
+    func localClickCaughtOutsideClosedSurfaceIsReposted() {
+        #expect(OverlayPanelController.mouseDownDisposition(
+            status: .closed,
+            origin: .local,
+            isInsideClosedSurface: false,
+            isInsideExpandedSurface: false
+        ) == .repost)
+    }
+
+    @Test
+    func globalClickOutsideOpenedSurfaceClosesWithoutDuplicateRepost() {
+        #expect(OverlayPanelController.mouseDownDisposition(
+            status: .opened,
+            origin: .global,
+            isInsideClosedSurface: false,
+            isInsideExpandedSurface: false
+        ) == .close)
+    }
+
+    @Test
+    func localClickOutsideOpenedSurfaceClosesAndReposts() {
+        #expect(OverlayPanelController.mouseDownDisposition(
+            status: .opened,
+            origin: .local,
+            isInsideClosedSurface: false,
+            isInsideExpandedSurface: false
+        ) == .closeAndRepost)
+    }
+
+    @Test
+    func nativePanelContractsToClosedSurfaceAfterCollapse() {
+        let closedSize = CGSize(width: 348, height: 40)
+        let openedSize = CGSize(width: 576, height: 452)
+
+        #expect(OverlayPanelController.nativePanelSize(
+            status: .closed,
+            closedSize: closedSize,
+            openedSize: openedSize
+        ) == closedSize)
+        #expect(OverlayPanelController.nativePanelSize(
+            status: .popping,
+            closedSize: closedSize,
+            openedSize: openedSize
+        ) == closedSize)
+        #expect(OverlayPanelController.nativePanelSize(
+            status: .opened,
+            closedSize: closedSize,
+            openedSize: openedSize
+        ) == openedSize)
+    }
+
     // MARK: - islandClosedHeight
 
     @Test
