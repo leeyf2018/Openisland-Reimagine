@@ -24,7 +24,7 @@ jobs:
       - name: Download the published zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag }}
+          TAG: ${{ github.event.inputs.tag || 'v1.1.6-reimagine.40' }}
         run: |
           set -euo pipefail
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "Open.Island.zip" --output "Open.Island.zip"
@@ -54,13 +54,19 @@ jobs:
           LENGTH: ${{ steps.sparkle_sign.outputs.length }}
         run: |
           set -euo pipefail
-          version="1.1.6-reimagine.40"
-          build="10040"
-          pub_date="$(date -u '+%a, %d %b %Y %H:%M:%S +0000')"
-          url="https://github.com/leeyf2018/Openisland-Reimagine/releases/download/v${version}/Open.Island.zip"
-          python3 - "$ED_SIGNATURE" "$LENGTH" "$pub_date" "$url" "$version" "$build" << 'PY'
-          import pathlib, sys
-          ed, length, pub, url, version, build = sys.argv[1:]
+          export VERSION="1.1.6-reimagine.40"
+          export BUILD="10040"
+          export PUB_DATE="$(date -u '+%a, %d %b %Y %H:%M:%S +0000')"
+          export DOWNLOAD_URL="https://github.com/leeyf2018/Openisland-Reimagine/releases/download/v${VERSION}/Open.Island.zip"
+          cat > /tmp/update_appcast.py << 'ENDSCRIPT'
+          import os
+          import pathlib
+          ed = os.environ["ED_SIGNATURE"]
+          length = os.environ["LENGTH"]
+          pub = os.environ["PUB_DATE"]
+          url = os.environ["DOWNLOAD_URL"]
+          version = os.environ["VERSION"]
+          build = os.environ["BUILD"]
           path = pathlib.Path("appcast.xml")
           text = path.read_text()
           marker = "<!-- Items are added by the release workflow. See docs/releasing.md. -->"
@@ -82,7 +88,8 @@ jobs:
           if marker not in text:
               raise SystemExit("appcast marker missing")
           path.write_text(text.replace(marker, marker + "\n" + item, 1))
-          PY
+          ENDSCRIPT
+          python3 /tmp/update_appcast.py
           branch="chore/appcast-v1.1.6-reimagine.40"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
