@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   sign:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -36,16 +36,37 @@ jobs:
           SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
         run: |
           set -euo pipefail
-          curl -fsSL -o sparkle.tar.xz "https://github.com/sparkle-project/Sparkle/releases/download/2.9.5/Sparkle-2.9.5.tar.xz"
-          tar -xf sparkle.tar.xz
-          sign_output="$(printf '%s\n' "$SPARKLE_EDDSA_KEY" | ./bin/sign_update "Open.Island.zip" --ed-key-file -)"
-          ed_signature="$(printf '%s\n' "$sign_output" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')"
-          length="$(printf '%s\n' "$sign_output" | sed -n 's/.*length="\([^"]*\)".*/\1/p')"
-          test -n "$ed_signature"
-          printf '%s\n' "$length" | grep -Eq '^[0-9]+$'
-          echo "ed_signature=$ed_signature" >> "$GITHUB_OUTPUT"
-          echo "length=$length" >> "$GITHUB_OUTPUT"
-          echo "Signed length=$length"
+          python3 -m venv /tmp/sparkle-sign
+          /tmp/sparkle-sign/bin/pip install --quiet pynacl
+          /tmp/sparkle-sign/bin/python - << 'PY'
+          import base64
+          import os
+          import pathlib
+          from nacl.signing import SigningKey
+
+          raw = base64.b64decode("".join(os.environ["SPARKLE_EDDSA_KEY"].split()))
+          expected = base64.b64decode("8E+SpYCjW/jEbNqgo+pGJ3sWYw34cvpSisDovbKwZEU=")
+          if len(raw) == 64:
+              seed = raw[:32]
+              suffix = raw[32:]
+          elif len(raw) == 32:
+              seed = raw
+              suffix = None
+          else:
+              raise SystemExit(f"unexpected key length {len(raw)}")
+          signing_key = SigningKey(seed)
+          derived = bytes(signing_key.verify_key)
+          if derived != expected:
+              raise SystemExit("derived public key does not match published SUPublicEDKey")
+          if suffix is not None and suffix != expected:
+              raise SystemExit("key suffix does not match published public key")
+          data = pathlib.Path("Open.Island.zip").read_bytes()
+          signature = base64.b64encode(signing_key.sign(data).signature).decode()
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"ed_signature={signature}\n")
+              handle.write(f"length={len(data)}\n")
+          print(f"Signed length={len(data)}")
+          PY
 
       - name: Open appcast pull request
         env:
