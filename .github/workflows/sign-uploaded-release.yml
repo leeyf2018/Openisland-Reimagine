@@ -1,0 +1,95 @@
+name: Sign uploaded release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose Open.Island.zip should be signed
+        required: true
+        default: v1.1.6-reimagine.40
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sign:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the published zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "Open.Island.zip" --output "Open.Island.zip"
+          test -s Open.Island.zip
+
+      - name: Sign with Sparkle EdDSA
+        id: sparkle_sign
+        env:
+          SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o sparkle.tar.xz "https://github.com/sparkle-project/Sparkle/releases/download/2.9.5/Sparkle-2.9.5.tar.xz"
+          tar -xf sparkle.tar.xz
+          sign_output="$(printf '%s\n' "$SPARKLE_EDDSA_KEY" | ./bin/sign_update "Open.Island.zip" --ed-key-file -)"
+          ed_signature="$(printf '%s\n' "$sign_output" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')"
+          length="$(printf '%s\n' "$sign_output" | sed -n 's/.*length="\([^"]*\)".*/\1/p')"
+          test -n "$ed_signature"
+          printf '%s\n' "$length" | grep -Eq '^[0-9]+$'
+          echo "ed_signature=$ed_signature" >> "$GITHUB_OUTPUT"
+          echo "length=$length" >> "$GITHUB_OUTPUT"
+          echo "Signed length=$length"
+
+      - name: Open appcast pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ED_SIGNATURE: ${{ steps.sparkle_sign.outputs.ed_signature }}
+          LENGTH: ${{ steps.sparkle_sign.outputs.length }}
+        run: |
+          set -euo pipefail
+          version="1.1.6-reimagine.40"
+          build="10040"
+          pub_date="$(date -u '+%a, %d %b %Y %H:%M:%S +0000')"
+          url="https://github.com/leeyf2018/Openisland-Reimagine/releases/download/v${version}/Open.Island.zip"
+          python3 - "$ED_SIGNATURE" "$LENGTH" "$pub_date" "$url" "$version" "$build" << 'PY'
+          import pathlib, sys
+          ed, length, pub, url, version, build = sys.argv[1:]
+          path = pathlib.Path("appcast.xml")
+          text = path.read_text()
+          marker = "<!-- Items are added by the release workflow. See docs/releasing.md. -->"
+          if f"<sparkle:version>{build}</sparkle:version>" in text:
+              raise SystemExit(f"build {build} already in appcast")
+          item = f"""        <item>
+              <title>Version {version}</title>
+              <sparkle:version>{build}</sparkle:version>
+              <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
+              <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+              <pubDate>{pub}</pubDate>
+              <enclosure
+                  url="{url}"
+                  type="application/octet-stream"
+                  sparkle:edSignature="{ed}"
+                  length="{length}"
+              />
+          </item>"""
+          if marker not in text:
+              raise SystemExit("appcast marker missing")
+          path.write_text(text.replace(marker, marker + "\n" + item, 1))
+          PY
+          branch="chore/appcast-v1.1.6-reimagine.40"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add appcast.xml
+          git commit -m "chore: update appcast.xml for v1.1.6-reimagine.40"
+          git push --force origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "chore: update appcast.xml for v1.1.6-reimagine.40" \
+            --body "Signed enclosure for the already published reimagine.40 zip."
+          gh pr merge "$branch" --merge --admin --delete-branch
