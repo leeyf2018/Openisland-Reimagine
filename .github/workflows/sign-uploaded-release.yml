@@ -1,6 +1,9 @@
 name: Sign uploaded release
 
-on:
+"on":
+  push:
+    paths:
+      - .github/workflows/sign-uploaded-release.yml
   workflow_dispatch:
     inputs:
       tag:
