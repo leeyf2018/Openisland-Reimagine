@@ -7,6 +7,19 @@
         <language>en</language>
         <!-- Items are added by the release workflow. See docs/releasing.md. -->
         <item>
+    <title>Version 1.1.6-reimagine.40</title>
+    <sparkle:version>10040</sparkle:version>
+    <sparkle:shortVersionString>1.1.6-reimagine.40</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <pubDate>Wed, 04 Nov 2026 16:28:39 +0000</pubDate>
+    <enclosure
+        url="https://github.com/leeyf2018/Openisland-Reimagine/releases/download/v1.1.6-reimagine.40/Open.Island.zip"
+        type="application/octet-stream"
+        sparkle:edSignature="aise27lUJIa2ByvLhE1BkIbZyc3EcKDuC43sOoSP/c4R/d00YHGiPVMS+KfwhGWKvwyGBwa2fBZpKdVoSrhLCw=="
+        length="7173467"
+    />
+</item>
+        <item>
             <title>Version 1.1.6-reimagine.37</title>
             <sparkle:version>10037</sparkle:version>
             <sparkle:shortVersionString>1.1.6-reimagine.37</sparkle:shortVersionString>
